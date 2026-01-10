@@ -1,0 +1,9 @@
+node_modules
+.env
+functions/.env
+serviceAccountKey.json
+dist
+coverage
+.DS_Store
+functions/node_modules
+.firebase

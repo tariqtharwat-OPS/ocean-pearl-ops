@@ -1,0 +1,14 @@
+product_id,product_name_en,product_name_id,applies_to,user_extendable,notes
+F01,Whole Frozen,Utuh Beku,ALL,Yes,Standard frozen whole fish; most common form
+F02,WGGS,WGGS,FISH,Yes,Whole Gutted Gilled Scaled; standard for many fish species
+F03,Fillet,Fillet,FISH,Yes,Boneless skinless fillets; premium product form
+F04,Steak,Steak,FISH,Yes,Cross-section cuts; suitable for larger fish
+F05,Cubes,Potong Dadu,FISH,Yes,Diced portions; for processing and food service
+F06,Slices,Irisan,FISH,Yes,Thin sliced portions; for sashimi and sushi
+F07,GG,GG,TUNA,Yes,Gilled and Gutted; tuna standard processing form
+F08,HGT,HGT,TUNA,Yes,Headed Gutted Tailed; tuna standard processing form
+F09,Loin,Loin,TUNA,Yes,Tuna loin; often graded A/B; premium product
+F10,Steak,Steak,TUNA,Yes,Tuna cross-section steaks; retail and food service
+F11,Cube,Cube,TUNA,Yes,Tuna diced portions; for processing and sushi
+F12,Slice,Slice,TUNA,Yes,Tuna sliced portions; for sashimi and sushi
+F13,Ground Meat,Daging Giling,TUNA,Yes,Minced tuna; for nuggets and processed products

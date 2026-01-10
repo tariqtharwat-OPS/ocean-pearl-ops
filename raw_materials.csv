@@ -1,0 +1,36 @@
+item_id,category_en,category_id,item_name_en,item_name_id,local_trade_names,scientific_optional,typical_size_grades,export_relevance,notes
+D01,Demersal Fish,Demersal,Red Snapper,Kakap Merah,Snapper; Ikan Merah,Lutjanus spp.,S/M/L/XL,High,Common export/local; premium quality
+D02,Demersal Fish,Demersal,Grouper,Kerapu,Coral Grouper; Kerapu Merah,Epinephelus spp.,M/L/XL,High,Premium demersal; high export value
+D03,Demersal Fish,Demersal,Coral Trout,Kerapu Sunu,Trout Grouper,Plectropomus spp.,M/L,High,High value species; premium market
+D04,Demersal Fish,Demersal,Emperor Fish,Lencam,Redfin Emperor; Ikan Lencam,Lethrinus spp.,M/L/XL,Medium,Common in trade; local and export
+D05,Demersal Fish,Demersal,Threadfin Bream,Kurisi,Threadfin; Ikan Kurisi,Nemipterus spp.,S/M/L,Medium,Common domestic; some export
+D06,Demersal Fish,Demersal,Sweetlip,Kaci-Kaci,Sweet Lip Grouper,Plectorhinchus spp.,M/L,Medium,Mixed demersal catch; local market
+D07,Demersal Fish,Demersal,Jobfish,Kurisi Besar,Large-eye Snapper,Aprion virescens,L/XL,Medium,Often graded by size; export potential
+D08,Demersal Fish,Demersal,Sea Perch,Kakap Batu,Rock Snapper,Lutjanus spp.,M/L,Local,Common local market; limited export
+D09,Demersal Fish,Demersal,Rusty Jobfish,Lehi,Rusty Snapper; Kurisi Perak,Aphareus rutilans,M/L,Medium,Deep water species; export market
+D10,Demersal Fish,Demersal,Green Jobfish,Uku,Green Snapper; Guntur,Aprion virescens,L/XL,Medium,Premium species; export destination
+D11,Demersal Fish,Demersal,Ruby Snapper,Elu,Red Snapper variant; Bagong,Etelis carbunculus,M/L,Medium,Deep water catch; export market
+P01,Pelagic Fish,Pelagik,Skipjack Tuna,Cakalang,Bonito; Ikan Cakalang,Katsuwonus pelamis,M/L/XL,High,High volume pole-and-line; major export
+P02,Pelagic Fish,Pelagik,Eastern Little Tuna,Tongkol,Little Tuna; Ikan Tongkol,Euthynnus affinis,M/L,High,High volume; local and export
+P03,Pelagic Fish,Pelagik,Indian Mackerel,Kembung,Mackerel; Ikan Kembung,Rastrelliger kanagurta,S/M/L,Medium,Local staple; some export
+P04,Pelagic Fish,Pelagik,Spanish Mackerel,Tenggiri,King Mackerel; Ikan Tenggiri,Scomberomorus commerson,M/L/XL,High,Premium pelagic; major export
+P05,Pelagic Fish,Pelagik,Trevally,Kuwe,Jack; Ikan Kuwe,Caranx spp.,M/L,Medium,Common species; local and export
+P06,Pelagic Fish,Pelagik,Scad,Layang,Round Scad; Ikan Layang,Decapterus spp.,S/M/L,Medium,Common species; local market
+P07,Pelagic Fish,Pelagik,Sardine,Lemuru,Pilchard; Ikan Lemuru,Sardinella longiceps,S/M,Medium,Common species; canned and fresh
+P08,Pelagic Fish,Pelagik,Bonito,Lisong,Frigate Mackerel; Ikan Lisong,Auxis thazard,S/M/L,Medium,Common species; local market
+C01,Crustaceans,Krustasea,Vannamei Shrimp,Udang Vaname,White Leg Shrimp; Udang Putih,Litopenaeus vannamei,S/M/L,High,Farmed; major export commodity
+C02,Crustaceans,Krustasea,Tiger Shrimp,Udang Windu,Black Tiger; Udang Harimau,Penaeus monodon,M/L/XL,High,Premium farmed; export market
+C03,Crustaceans,Krustasea,Banana Shrimp,Udang Pisang,Banana Prawn; Udang Pisang,Penaeus merguiensis,M/L,Medium,Common farmed; local and export
+C04,Crustaceans,Krustasea,Mud Crab,Kepiting Bakau,Mangrove Crab; Kepiting Lumpur,Scylla serrata,M/L/XL,High,Live/export; premium market
+C05,Crustaceans,Krustasea,Blue Swimming Crab,Rajungan,Flower Crab; Blue Crab,Portunus pelagicus,M/L,High,Meat/export; major commodity
+C06,Crustaceans,Krustasea,Lobster,Lobster,Spiny Lobster; Batu Lapis,Panulirus spp.,L/XL,High,High value; regulated; export
+C07,Crustaceans,Krustasea,Slipper Lobster,Lobster Sisir,Flathead Lobster,Ibacus spp.,M/L,Medium,Export commodity; live/frozen
+M01,Mollusks,Moluska,Squid,Cumi-Cumi,Squid; Cumi,Loligo spp.,S/M/L,High,Common; major export to China
+M02,Mollusks,Moluska,Cuttlefish,Sotong,Cuttlefish; Sotong,Sepia spp.,S/M/L,Medium,Common species; local and export
+M03,Mollusks,Moluska,Octopus,Gurita,Octopus; Gurita,Octopus spp.,S/M/L,High,Export commodity; 60% to sustainable markets
+M04,Mollusks,Moluska,Clam,Kerang,Hard Clam; Kerang Keras,Meretrix spp.,S/M,Medium,Common species; local market
+M05,Mollusks,Moluska,Green Mussel,Kerang Hijau,Green Mussel; Mussel Hijau,Perna viridis,S/M,Medium,Common species; local market
+M06,Mollusks,Moluska,Abalone,Abalon,Abalone; Abalon,Haliotis spp.,S/M,Low,Regulated; limited commercial availability
+Y01,Yellowfin Tuna,Tuna Sirip Kuning,Yellowfin Tuna (Whole),Tuna Sirip Kuning (Utuh),Yellowfin; Tuna Kuning,Thunnus albacares,M/L/XL,High,Dedicated category; whole frozen
+Y02,Yellowfin Tuna,Tuna Sirip Kuning,Yellowfin Tuna (Export Size),Tuna Sirip Kuning (Ukuran Ekspor),Yellowfin Export Grade,Thunnus albacares,L/XL,High,Size graded for export; premium
+Y03,Yellowfin Tuna,Tuna Sirip Kuning,Yellowfin Tuna (Small Size),Tuna Sirip Kuning (Ukuran Kecil),Yellowfin Small Grade,Thunnus albacares,S/M,Medium,Size graded; local and small export
