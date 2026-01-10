@@ -3,7 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { MessageSquare, X, Send, Fish, Maximize2, Minimize2, Paperclip, FileText, Download, Loader2, Check } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
+import { getFunctionsForRegion } from '../lib/firebase';
+import { getFunctionRegion } from '../lib/functionLocator';
 import { getApp } from 'firebase/app';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,7 +29,7 @@ function TransactionDraft({ draft, onComplete }) {
 
     const handleExecute = async () => {
         setLoading(true);
-        const functions = getFunctions(getApp(), 'asia-southeast1');
+        
         console.log("DEBUG: Executing with functions instance:", functions);
 
         // --- CONTEXT INJECTION FIX ---
@@ -61,6 +63,8 @@ function TransactionDraft({ draft, onComplete }) {
                     throw new Error("Unknown Draft Type: " + draft.type);
             }
 
+            const region = getFunctionRegion(funcName);
+            const functions = getFunctionsForRegion(region);
             const fn = httpsCallable(functions, funcName);
             const res = await fn(enhancedPayload);
             setResult({ success: true, id: res.data.requestId || res.data.id });

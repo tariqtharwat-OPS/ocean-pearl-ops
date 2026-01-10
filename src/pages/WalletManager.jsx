@@ -7,14 +7,16 @@ import { ArrowLeft, Plus, Check, X, Clock, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // V2 API
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
+import { getFunctionsForRegion } from '../lib/firebase';
+import { getFunctionRegion } from '../lib/functionLocator';
 
 export default function WalletManager() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('requests');
     const [showSendFunds, setShowSendFunds] = useState(false);
-    const functions = getFunctions(undefined, 'asia-southeast1');
+    
 
     // Permissions
     const isHQ = currentUser?.role_v2 === 'HQ_ADMIN';
@@ -253,6 +255,8 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
         setProcessing(true);
         try {
             const endpoint = action === 'APPROVE' ? 'approveFinancialRequest' : 'rejectFinancialRequest';
+            const region = getFunctionRegion(endpoint);
+            const functions = getFunctionsForRegion(region);
             const fn = httpsCallable(functions, endpoint);
             await fn({ requestId: req.id, reason: action === 'REJECT' ? 'Manager Rejected' : null });
             // UI updates via snapshot
@@ -332,6 +336,8 @@ function CreateRequestForm({ onClose, currentUfunction CreateRequestForm({ onClo
                 }
             }
 
+            const region = getFunctionRegion('createFinancialRequest');
+            const functions = getFunctionsForRegion(region);
             const fn = httpsCallable(functions, 'createFinancialRequest');
             await fn({
                 type,
@@ -436,6 +442,8 @@ function SendFundsForm({ onClose, functions }) {
 
         setSubmitting(true);
         try {
+            const region = getFunctionRegion('postTransaction');
+            const functions = getFunctionsForRegion(region);
             const fn = httpsCallable(functions, 'postTransaction');
             // We need a valid unitId for the transaction record, even if it's a location-level transfer.
             // We'll pick the first unit of the target location.

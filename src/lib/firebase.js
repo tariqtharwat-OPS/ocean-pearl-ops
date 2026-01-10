@@ -17,13 +17,23 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const functions = getFunctions(app, 'asia-southeast1');
+const functionsInstances = {};
+
+export const getFunctionsForRegion = (region) => {
+  if (!functionsInstances[region]) {
+    functionsInstances[region] = getFunctions(app, region);
+    if (location.hostname === "localhost") {
+      connectFunctionsEmulator(functionsInstances[region], 'localhost', 5001);
+    }
+  }
+  return functionsInstances[region];
+};
 const auth = getAuth(app);
 
 // Use emulators in development
 if (location.hostname === "localhost") {
     connectFirestoreEmulator(db, 'localhost', 8080);
-    connectFunctionsEmulator(functions, 'localhost', 5001);
+    
     connectAuthEmulator(auth, 'http://localhost:9099');
 } else {
     // Only enable persistence if NOT using emulators to avoid conflicts
@@ -36,7 +46,7 @@ if (location.hostname === "localhost") {
     });
 }
 
-export { db, functions, auth };
+export { db, auth };
 if (typeof window !== 'undefined') {
     window._debug_firebase = { app, db, functions, auth };
 }
