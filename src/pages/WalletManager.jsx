@@ -39,8 +39,14 @@ export default function WalletManager() {
                             </button>
                             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                                 <span>💸</span> {isHQ ? 'Global Finance' : 'Wallet & Requests'}
-                                <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full ml-2 shadow-sm">V2.5</span>
+                                <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full ml-2 shadow-sm">V2.6</span>
                             </h1>
+                            {/* DEBUG INFO */}
+                            {isHQ && (
+                                <div className="text-[10px] text-slate-400 font-mono mt-1">
+                                    Context: {currentUser.locationId || 'GLOBAL'} | Role: {currentUser.role_v2}
+                                </div>
+                            )}
                         </div>
                         {/* Only Manager/HQ sees wallet balance in header */}
                         {isManager && (
@@ -103,29 +109,39 @@ export default function WalletManager() {
 function WalletBalanceIndicator({ currentUser, isHQ }) {
     const [balance, setBalance] = useState(0);
 
-    useEffect(() => {
-        const walletId = isHQ ? 'HQ' : currentUser?.locationId; // target_id for manager is location
-        if (!walletId) return;
+    // Context Logic:
+    // If isHQ, we use checked locationId (from context switch) OR 'HQ' if null.
+    // If Manager, we use locationId (already set).
+    const isContextSwitching = isHQ && currentUser.locationId && currentUser.locationId !== 'HQ';
+    const targetWalletId = isContextSwitching ? currentUser.locationId : (isHQ ? 'HQ' : currentUser.locationId);
 
-        // This fails if user not allowed to read wallet (backend rule)
-        // But isManager check passed.
+    // Label Logic
+    let label = 'Unknown Wallet';
+    if (isHQ && !isContextSwitching) label = 'HQ Treasury'; // Pure HQ
+    else if (isContextSwitching) label = `Location Wallet (${currentUser.locationId.toUpperCase()})`; // HQ Viewing Loc
+    else label = 'Location Wallet'; // Manager Viewing Loc
+
+    useEffect(() => {
+        if (!targetWalletId) return;
+
         try {
             const unsub = onSnapshot(collection(db, 'site_wallets'), (snap) => {
-                const doc = snap.docs.find(d => d.id === walletId);
+                const doc = snap.docs.find(d => d.id === targetWalletId);
                 if (doc) setBalance(doc.data().balance || 0);
+                else setBalance(0); // Doc missing means 0
             });
             return () => unsub();
         } catch (e) {
             console.error("Wallet Read Error", e);
         }
-    }, [isHQ, currentUser]);
+    }, [targetWalletId]);
 
     const formatMoney = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(n);
 
     return (
         <div className="text-right">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {isHQ ? 'HQ Treasury' : 'Location Wallet'}
+                {label}
             </div>
             <div className={`text-xl font-mono font-bold ${balance < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                 {formatMoney(balance)}
@@ -306,18 +322,35 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
         e.preventDefault();
         setSubmitting(true);
         try {
+            const locId = currentUser.locationId || (isManager ? currentUser.target_id : null);
+
+            // Validation for HQ Context
+            if (!locId && !isManager) {
+                // If HQ hasn't switched context, where does it go?
+                // It goes to Global (which fails backend validation usually)
+                // Let's warn them.
+                if (!confirm("You are creating a request for HQ GLOBAL context. Continue?")) {
+                    setSubmitting(false);
+                    return;
+                }
+            }
+
             const fn = httpsCallable(functions, 'createFinancialRequest');
             await fn({
                 type,
                 amount: parseFloat(amount),
                 description: desc,
-                locationId: currentUser.locationId,
+                locationId: locId,
                 unitId: currentUser.unitId,
                 category: 'General'
             });
+
+            // SUCCESS FEEDBACK
+            alert("✅ Request Created Successfully! It is now PENDING APPROVAL.");
             onClose();
         } catch (e) {
-            alert(e.message);
+            console.error(e);
+            alert(`Error: ${e.message}`);
         } finally {
             setSubmitting(false);
         }
