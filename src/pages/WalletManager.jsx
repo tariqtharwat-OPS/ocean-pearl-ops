@@ -117,6 +117,7 @@ function WalletBalanceIndicator({ currentUser, isHQ }) {
 function RequestsView({ currentUser, isManager, isHQ, functions }) {
     const [requests, setRequests] = useState([]);
     const [showCreate, setShowCreate] = useState(false);
+    const [showSendFunds, setShowSendFunds] = useState(false);
 
     // Fetch Requests related to user scope
     useEffect(() => {
@@ -150,12 +151,22 @@ function RequestsView({ currentUser, isManager, isHQ, functions }) {
                 <h3 className="font-bold text-slate-700">
                     {isManager ? 'Pending Approvals' : 'My Requests'}
                 </h3>
-                <button
-                    onClick={() => setShowCreate(true)}
-                    className="btn btn-primary flex items-center gap-2 text-sm px-4 py-2"
-                >
-                    <Plus size={16} /> New Request
-                </button>
+                <div className="flex gap-2">
+                    {isHQ && (
+                        <button
+                            onClick={() => setShowSendFunds(true)}
+                            className="btn bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-sm px-4 py-2"
+                        >
+                            <span>💸</span> Send Funds
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        className="btn btn-primary flex items-center gap-2 text-sm px-4 py-2"
+                    >
+                        <Plus size={16} /> New Request
+                    </button>
+                </div>
             </div>
 
             {/* Creation Modal/Form */}
@@ -164,6 +175,14 @@ function RequestsView({ currentUser, isManager, isHQ, functions }) {
                     onClose={() => setShowCreate(false)}
                     currentUser={currentUser}
                     isManager={isManager}
+                    functions={functions}
+                />
+            )}
+
+            {/* HQ Send Funds Modal */}
+            {showSendFunds && (
+                <SendFundsForm
+                    onClose={() => setShowSendFunds(false)}
                     functions={functions}
                 />
             )}
@@ -352,6 +371,110 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
                         <button type="button" onClick={onClose} className="flex-1 btn bg-slate-100 text-slate-600">Cancel</button>
                         <button type="submit" disabled={submitting} className="flex-1 btn btn-primary">
                             {submitting ? 'Creating...' : 'Submit Request'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+// === FORM: Send Funds (HQ Only) ===
+function SendFundsForm({ onClose, functions }) {
+    const [targetLocation, setTargetLocation] = useState('');
+    const [amount, setAmount] = useState('');
+    const [desc, setDesc] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!targetLocation) return alert("Please select a target location.");
+
+        setSubmitting(true);
+        try {
+            const fn = httpsCallable(functions, 'postTransaction');
+            // We need a valid unitId for the transaction record, even if it's a location-level transfer.
+            // We'll pick the first unit of the target location.
+            const loc = LOCATIONS[targetLocation];
+            const defaultUnit = loc.units && loc.units.length > 0 ? loc.units[0].id : 'generic_unit';
+
+            await fn({
+                type: 'CASH_TRANSFER',
+                locationId: targetLocation,
+                unitId: defaultUnit,
+                amount: parseFloat(amount),
+                description: desc,
+                transferDirection: 'IN', // IN to Location (HQ -> Loc)
+                paymentMethod: 'cash'
+            });
+            alert("Funds Transferred Successfully!");
+            onClose();
+        } catch (e) {
+            console.error(e);
+            alert(`Transfer Failed: ${e.message}`);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span>💸</span> Send Capital
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="p-3 bg-emerald-50 text-emerald-800 text-sm rounded-lg flex gap-2">
+                        <Check size={16} />
+                        Injecting Capital from HQ Treasury to Location Wallet.
+                    </div>
+
+                    <div>
+                        <label className="text-sm font-bold text-slate-700">Target Location</label>
+                        <select
+                            className="input-field"
+                            value={targetLocation}
+                            onChange={e => setTargetLocation(e.target.value)}
+                            required
+                        >
+                            <option value="">Select Location...</option>
+                            {Object.values(LOCATIONS).map(loc => (
+                                <option key={loc.id} value={loc.id}>{loc.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-sm font-bold text-slate-700">Amount (IDR)</label>
+                        <input
+                            type="number"
+                            className="input-field text-lg font-bold text-emerald-700"
+                            value={amount}
+                            onChange={e => setAmount(e.target.value)}
+                            required
+                            min="100000"
+                            placeholder="e.g. 500,000,000"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-sm font-bold text-slate-700">Description</label>
+                        <textarea
+                            className="input-field"
+                            value={desc}
+                            onChange={e => setDesc(e.target.value)}
+                            required
+                            placeholder="e.g. Q1 Operational Capital Injection"
+                        />
+                    </div>
+
+                    <div className="pt-4">
+                        <button type="submit" disabled={submitting} className="w-full btn btn-primary bg-emerald-600 hover:bg-emerald-700">
+                            {submitting ? 'Processing Transfer...' : 'Confirm Transfer'}
                         </button>
                     </div>
                 </form>
