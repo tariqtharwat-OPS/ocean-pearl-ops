@@ -13,6 +13,7 @@ export default function WalletManager() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('requests');
+    const [showSendFunds, setShowSendFunds] = useState(false);
     const functions = getFunctions(undefined, 'asia-southeast2');
 
     // Permissions
@@ -22,6 +23,7 @@ export default function WalletManager() {
 
     // If Unit Op, force tab to 'requests' and hide others
     useEffect(() => {
+        console.log("✅ WalletManager Loaded: V2.5");
         if (isUnit) setActiveTab('requests');
     }, [isUnit]);
 
@@ -37,7 +39,7 @@ export default function WalletManager() {
                             </button>
                             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                                 <span>💸</span> {isHQ ? 'Global Finance' : 'Wallet & Requests'}
-                                <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full ml-2">V2.1</span>
+                                <span className="text-xs bg-emerald-600 text-white px-2 py-0.5 rounded-full ml-2 shadow-sm">V2.5</span>
                             </h1>
                         </div>
                         {/* Only Manager/HQ sees wallet balance in header */}
@@ -69,11 +71,30 @@ export default function WalletManager() {
 
                 {/* VIEWS */}
                 {activeTab === 'requests' ? (
-                    <RequestsView currentUser={currentUser} isManager={isManager} isHQ={isHQ} functions={functions} />
+                    <RequestsView
+                        currentUser={currentUser}
+                        isManager={isManager}
+                        isHQ={isHQ}
+                        functions={functions}
+                        onShowSendFunds={() => setShowSendFunds(true)}
+                    />
                 ) : (
-                    <WalletView currentUser={currentUser} isHQ={isHQ} functions={functions} />
+                    <WalletView
+                        currentUser={currentUser}
+                        isHQ={isHQ}
+                        functions={functions}
+                        onShowSendFunds={() => setShowSendFunds(true)}
+                    />
                 )}
             </div>
+
+            {/* HQ Send Funds Modal (Global) */}
+            {showSendFunds && (
+                <SendFundsForm
+                    onClose={() => setShowSendFunds(false)}
+                    functions={functions}
+                />
+            )}
         </div>
     );
 }
@@ -114,10 +135,9 @@ function WalletBalanceIndicator({ currentUser, isHQ }) {
 }
 
 // === VIEW: Requests List & Creation ===
-function RequestsView({ currentUser, isManager, isHQ, functions }) {
+function RequestsView({ currentUser, isManager, isHQ, functions, onShowSendFunds }) {
     const [requests, setRequests] = useState([]);
     const [showCreate, setShowCreate] = useState(false);
-    const [showSendFunds, setShowSendFunds] = useState(false);
 
     // Fetch Requests related to user scope
     useEffect(() => {
@@ -154,7 +174,7 @@ function RequestsView({ currentUser, isManager, isHQ, functions }) {
                 <div className="flex gap-2">
                     {isHQ && (
                         <button
-                            onClick={() => setShowSendFunds(true)}
+                            onClick={onShowSendFunds}
                             className="btn bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-sm px-4 py-2"
                         >
                             <span>💸</span> Send Funds
@@ -175,14 +195,6 @@ function RequestsView({ currentUser, isManager, isHQ, functions }) {
                     onClose={() => setShowCreate(false)}
                     currentUser={currentUser}
                     isManager={isManager}
-                    functions={functions}
-                />
-            )}
-
-            {/* HQ Send Funds Modal */}
-            {showSendFunds && (
-                <SendFundsForm
-                    onClose={() => setShowSendFunds(false)}
                     functions={functions}
                 />
             )}
@@ -484,17 +496,28 @@ function SendFundsForm({ onClose, functions }) {
 }
 
 // === VIEW: Wallet Management (Manager Only) ===
-function WalletView({ currentUser, isHQ, functions }) {
+function WalletView({ currentUser, isHQ, functions, onShowSendFunds }) {
     // Current Balance managed by Header
     // Here we can show Transaction History or "Direct Actions" if any allowed (e.g. Supplier Payment)
     // For V2: Keep it simple. Show "Recent Transactions" for this wallet.
 
-    // This is optional for Phase 4 but good for visibility.
     return (
-        <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
-            <h3 className="font-bold text-slate-600 mb-2">Wallet Ledger</h3>
-            <p className="text-sm">Use "Requests" to initiate new expenses or funding.</p>
-            <p className="text-xs mt-4 opacity-50">Transaction History View coming in 4.1</p>
+        <div className="space-y-6">
+            {isHQ && (
+                <div className="flex justify-end">
+                    <button
+                        onClick={onShowSendFunds}
+                        className="btn bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-sm px-4 py-2"
+                    >
+                        <span>💸</span> Send Funds
+                    </button>
+                </div>
+            )}
+            <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                <h3 className="font-bold text-slate-600 mb-2">Wallet Ledger</h3>
+                <p className="text-sm">Use "Requests" to initiate new expenses or funding.</p>
+                <p className="text-xs mt-4 opacity-50">Transaction History View coming in 4.1</p>
+            </div>
         </div>
     );
 }

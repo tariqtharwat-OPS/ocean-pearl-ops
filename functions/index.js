@@ -930,3 +930,63 @@ exports.twilioWebhook = functions.region('asia-southeast2').https.onRequest(asyn
     res.set('Content-Type', 'text/xml');
     res.status(200).send(twiml.toString());
 });
+/**
+ * injectDay1 (Emergency Bypass)
+ */
+exports.injectDay1 = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+    // Basic Security
+    if (req.query.key !== 'antigravity_secret') return res.status(403).send('Forbidden');
+
+    const amount = 500000000;
+    const locationId = 'kaimana';
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    try {
+        await db.runTransaction(async (t) => {
+            // 1. READS FIRST (Firestore Requirement)
+            const locRef = db.doc(`site_wallets/${locationId}`);
+            const locDoc = await t.get(locRef);
+
+            // 2. WRITES
+            // A. Transaction Record
+            const txnRef = db.collection('transactions').doc();
+            t.set(txnRef, {
+                type: 'CASH_TRANSFER',
+                amount: amount,
+                sourceWalletId: 'HQ',
+                targetWalletId: locationId,
+                transferDirection: 'IN',
+                description: 'Day 1 Capital Injection (Emergency Bypass)',
+                timestamp: timestamp,
+                finalized: true,
+                approverId: 'SYSTEM_ADMIN'
+            });
+
+            // B. Update HQ
+            t.update(db.doc('site_wallets/HQ'), {
+                balance: admin.firestore.FieldValue.increment(-amount),
+                updatedAt: timestamp
+            });
+
+            // C. Update Location
+            if (!locDoc.exists) {
+                t.set(locRef, {
+                    balance: amount,
+                    type: 'LOCATION',
+                    locationId: locationId,
+                    updatedAt: timestamp
+                });
+            } else {
+                t.update(locRef, {
+                    balance: admin.firestore.FieldValue.increment(amount),
+                    updatedAt: timestamp
+                });
+            }
+        });
+
+        res.status(200).send(`✅ SUCCESS: Injected Rp ${amount.toLocaleString()} to ${locationId}.`);
+    } catch (e) {
+        console.error(e);
+        res.status(500).send(e.message);
+    }
+});
