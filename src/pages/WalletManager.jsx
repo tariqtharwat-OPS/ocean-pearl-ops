@@ -37,6 +37,7 @@ export default function WalletManager() {
                             </button>
                             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                                 <span>💸</span> {isHQ ? 'Global Finance' : 'Wallet & Requests'}
+                                <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full ml-2">V2.1</span>
                             </h1>
                         </div>
                         {/* Only Manager/HQ sees wallet balance in header */}
@@ -82,7 +83,7 @@ function WalletBalanceIndicator({ currentUser, isHQ }) {
     const [balance, setBalance] = useState(0);
 
     useEffect(() => {
-        const walletId = isHQ ? 'HQ' : currentUser?.target_id; // target_id for manager is location
+        const walletId = isHQ ? 'HQ' : currentUser?.locationId; // target_id for manager is location
         if (!walletId) return;
 
         // This fails if user not allowed to read wallet (backend rule)
@@ -129,7 +130,7 @@ function RequestsView({ currentUser, isManager, isHQ, functions }) {
             q = query(col, where('status', '==', 'PENDING'), orderBy('createdAt', 'desc'));
         } else if (isManager) {
             // Manager sees requests for their Location
-            q = query(col, where('locationId', '==', currentUser.target_id), orderBy('createdAt', 'desc'));
+            q = query(col, where('locationId', '==', currentUser.locationId), orderBy('createdAt', 'desc'));
         } else {
             // Unit Op sees their own requests
             q = query(col, where('requesterId', '==', currentUser.uid), orderBy('createdAt', 'desc'));
@@ -279,8 +280,8 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
                 type,
                 amount: parseFloat(amount),
                 description: desc,
-                locationId: currentUser.locationId || currentUser.target_id, // Safety fallback
-                unitId: currentUser.unitId || currentUser.target_id, // If unit_op, target_id is unit
+                locationId: currentUser.locationId,
+                unitId: currentUser.unitId,
                 category: 'General'
             });
             onClose();

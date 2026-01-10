@@ -6,12 +6,12 @@
 
 | Role Scope | Name | Email (Login ID) | Role | Location | Unit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Global Admin** | Tariq (CEO) | `tariq@oceanpearlseafood.com` | Admin | *Global* | *Global* |
-| **HQ Jakarta** | Staff Jakarta Office | `staff_jakarta_office@ops.com` | Staff | HQ Jakarta | Office |
-| **HQ Jakarta** | Staff Jakarta CS | `staff_jakarta_cs@ops.com` | Staff | HQ Jakarta | Cold Storage |
-| **Kaimana** | Head Kaimana Teri | `head_kaimana_teri@ops.com` | Manager | Kaimana | Gudang Ikan Teri |
-| **Kaimana** | Head Kaimana Frozen | `head_kaimana_frozen@ops.com` | Manager | Kaimana | Frozen Fish |
-| **Saumlaki** | Head Saumlaki Frozen | `head_saumlaki_frozen@ops.com` | Manager | Saumlaki | Frozen Fish |
+| **👑 ROOT** | Tariq (CEO) | `tariq@oceanpearlseafood.com` | HQ_ADMIN | *Global* | *Global* |
+| **🏢 HQ** | Sarah (Ops Admin) | `admin_hq_sarah@ops.com` | HQ_ADMIN | Jakarta | Office |
+| **📍 MANAGER** | Pak Budi | `manager_kaimana_budi@ops.com` | LOC_MANAGER | Kaimana | Frozen Fish |
+| **👷 OPERATOR** | Usi (Admin Teri) | `op_teri_usi@ops.com` | UNIT_OP | Kaimana | Gudang Ikan Teri |
+| **👀 INVESTOR** | Lukas | `investor_view@ops.com` | READ_ONLY | *Global* | *Global* |
+| **❄️ LEGACY** | Head Kaimana Teri | `head_kaimana_teri@ops.com` | UNIT_OP | Kaimana | Gudang Ikan Teri |
 
 ---
 

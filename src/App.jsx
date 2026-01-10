@@ -13,18 +13,40 @@ import AdminPanel from './pages/Admin/AdminPanel';
 import ReportsViewer from './pages/Reports/ReportsViewer';
 import WalletManager from './pages/WalletManager';
 import DashboardV1 from './pages/Admin/DashboardV1';
+import NotFound from './pages/NotFound';
 
 function PrivateRoute({ children, allowedRoles = [] }) {
     const { currentUser } = useAuth();
     if (!currentUser) return <Navigate to="/login" />;
-    if (allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role)) {
-        return <Navigate to="/" />;
+
+    // Check if roles are defined
+    if (allowedRoles.length === 0) return children;
+
+    // Check against Legacy Role OR V2 Role
+    const hasPermission = allowedRoles.includes(currentUser.role) || allowedRoles.includes(currentUser.role_v2);
+
+    if (!hasPermission) {
+        console.warn("Access Denied", {
+            path: window.location.pathname,
+            role: currentUser.role,
+            role_v2: currentUser.role_v2,
+            allowed: allowedRoles
+        });
+        // Redirect to 404 to make it obvious
+        return <NotFound />;
     }
+
     return children;
 }
 
 function AppRoutes() {
     const { currentUser } = useAuth();
+
+    // Common sets
+    const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP'];
+    const ADMIN_ONLY = ['admin', 'hq', 'HQ_ADMIN'];
+    const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN'];
+    const REPORTS_VIEW = ['admin', 'report_viewer', 'hq', 'manager', 'HQ_ADMIN', 'LOC_MANAGER', 'READ_ONLY'];
 
     return (
         <Routes>
@@ -37,52 +59,56 @@ function AppRoutes() {
                     </PrivateRoute>
                 } />
                 <Route path="/receiving" element={
-                    <PrivateRoute allowedRoles={['staff', 'manager', 'site_user', 'operator']}>
+                    <PrivateRoute allowedRoles={ALL_OPS}>
                         <Receiving />
                     </PrivateRoute>
                 } />
                 <Route path="/expenses" element={
-                    <PrivateRoute allowedRoles={['staff', 'manager', 'site_user', 'operator']}>
+                    <PrivateRoute allowedRoles={ALL_OPS}>
                         <Expenses />
                     </PrivateRoute>
                 } />
                 <Route path="/cold-storage" element={
-                    <PrivateRoute allowedRoles={['staff', 'manager', 'site_user', 'operator']}>
+                    <PrivateRoute allowedRoles={ALL_OPS}>
                         <ProductionRun />
                     </PrivateRoute>
                 } />
                 <Route path="/wallet" element={
-                    <PrivateRoute allowedRoles={['staff', 'manager', 'site_user', 'operator']}>
+                    <PrivateRoute allowedRoles={ALL_OPS}>
                         <WalletManager />
                     </PrivateRoute>
                 } />
 
                 {/* HQ / Sales Only */}
                 <Route path="/sales" element={
-                    <PrivateRoute allowedRoles={['sales', 'hq', 'admin']}>
+                    <PrivateRoute allowedRoles={SALES_ONLY}>
                         <SalesInvoice />
                     </PrivateRoute>
                 } />
 
                 <Route path="/dashboard-v1" element={
-                    <PrivateRoute allowedRoles={['admin']}>
+                    <PrivateRoute allowedRoles={ADMIN_ONLY}>
                         <DashboardV1 />
                     </PrivateRoute>
                 } />
 
                 {/* Admin Only */}
                 <Route path="/admin" element={
-                    <PrivateRoute allowedRoles={['admin']}>
+                    <PrivateRoute allowedRoles={ADMIN_ONLY}>
                         <AdminPanel />
                     </PrivateRoute>
                 } />
 
                 {/* Reports (Admin & Viewers) */}
                 <Route path="/reports" element={
-                    <PrivateRoute allowedRoles={['admin', 'report_viewer', 'hq']}>
+                    <PrivateRoute allowedRoles={REPORTS_VIEW}>
                         <ReportsViewer />
                     </PrivateRoute>
                 } />
+
+                {/* Catch All - Show 404 */}
+                <Route path="*" element={<NotFound />} />
+
             </Route>
         </Routes>
     );
