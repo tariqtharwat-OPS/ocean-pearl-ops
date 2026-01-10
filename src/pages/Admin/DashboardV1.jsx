@@ -70,7 +70,7 @@ export default function DashboardV1() {
         if (!confirm(`Are you sure you want to ${action} this request?`)) return;
         setProcessingId(reqId);
         try {
-            const functions = getFunctions(getApp(), 'asia-southeast2');
+            const functions = getFunctions(getApp(), 'asia-southeast1');
             const fnName = action === 'APPROVE' ? 'approveFinancialRequest' : 'rejectFinancialRequest';
             const fn = httpsCallable(functions, fnName);
 

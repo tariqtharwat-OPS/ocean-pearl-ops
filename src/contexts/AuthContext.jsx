@@ -54,7 +54,12 @@ export function AuthProvider({ children }) {
     }, []);
 
     const login = async (email, password) => {
-        await signInWithEmailAndPassword(auth, email, password);
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            console.error("Login Error:", error);
+            throw new Error(`Login failed: ${error.message}`);
+        }
     };
 
     const logout = async () => {

@@ -17,7 +17,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const functions = getFunctions(app, 'asia-southeast2');
+const functions = getFunctions(app, 'asia-southeast1');
 const auth = getAuth(app);
 
 // Use emulators in development

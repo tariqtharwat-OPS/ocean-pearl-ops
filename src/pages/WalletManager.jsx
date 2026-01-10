@@ -14,7 +14,7 @@ export default function WalletManager() {
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('requests');
     const [showSendFunds, setShowSendFunds] = useState(false);
-    const functions = getFunctions(undefined, 'asia-southeast2');
+    const functions = getFunctions(undefined, 'asia-southeast1');
 
     // Permissions
     const isHQ = currentUser?.role_v2 === 'HQ_ADMIN';
@@ -309,14 +309,14 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
 }
 
 // === FORM: Create Request ===
-function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
-    const [type, setType] = useState('EXPENSE');
+function CreateRequestForm({ onClose, currentUfunction CreateRequestForm({ onClose, currentUser, isManager, functions }) {
+    const [type, setType] = useState('EXPENSE'); // EXPENSE or FUNDING
     const [amount, setAmount] = useState('');
     const [desc, setDesc] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    // Only Manager can create FUNDING
-    const canFunding = isManager;
+    // Permissions: Can this user request FUNDING?
+    const canFunding = isManager; // Only managers can request from HQ
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -326,9 +326,6 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
 
             // Validation for HQ Context
             if (!locId && !isManager) {
-                // If HQ hasn't switched context, where does it go?
-                // It goes to Global (which fails backend validation usually)
-                // Let's warn them.
                 if (!confirm("You are creating a request for HQ GLOBAL context. Continue?")) {
                     setSubmitting(false);
                     return;
@@ -349,10 +346,12 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
             alert("✅ Request Created Successfully! It is now PENDING APPROVAL.");
             onClose();
         } catch (e) {
-            console.error(e);
-            alert(`Error: ${e.message}`);
+            console.error("Request Creation Error:", e);
+            alert(`❌ Error creating request: ${e.message}`);
         } finally {
             setSubmitting(false);
+        }
+    };ting(false);
         }
     };
 
@@ -530,9 +529,24 @@ function SendFundsForm({ onClose, functions }) {
 
 // === VIEW: Wallet Management (Manager Only) ===
 function WalletView({ currentUser, isHQ, functions, onShowSendFunds }) {
-    // Current Balance managed by Header
-    // Here we can show Transaction History or "Direct Actions" if any allowed (e.g. Supplier Payment)
-    // For V2: Keep it simple. Show "Recent Transactions" for this wallet.
+    const [transactions, setTransactions] = useState([]);
+
+    useEffect(() => {
+        if (!currentUser.locationId) return;
+
+        const q = query(
+            collection(db, "transactions"),
+            where("locationId", "==", currentUser.locationId),
+            orderBy("timestamp", "desc"),
+            limit(20)
+        );
+
+        const unsub = onSnapshot(q, (snap) => {
+            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+
+        return () => unsub();
+    }, [currentUser.locationId]);
 
     return (
         <div className="space-y-6">
@@ -546,10 +560,24 @@ function WalletView({ currentUser, isHQ, functions, onShowSendFunds }) {
                     </button>
                 </div>
             )}
-            <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
-                <h3 className="font-bold text-slate-600 mb-2">Wallet Ledger</h3>
-                <p className="text-sm">Use "Requests" to initiate new expenses or funding.</p>
-                <p className="text-xs mt-4 opacity-50">Transaction History View coming in 4.1</p>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                <h3 className="font-bold text-slate-700 p-4 border-b border-slate-200">Recent Transactions</h3>
+                <div className="divide-y divide-slate-100">
+                    {transactions.length === 0 && (
+                        <p className="p-4 text-slate-500 italic">No transactions found.</p>
+                    )}
+                    {transactions.map(txn => (
+                        <div key={txn.id} className="p-4 flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-slate-800">{txn.description}</p>
+                                <p className="text-sm text-slate-500">{new Date(txn.timestamp?.toDate()).toLocaleString()}</p>
+                            </div>
+                            <div className={`font-bold text-lg ${txn.walletImpact > 0 ? "text-green-600" : "text-red-600"}`}>
+                                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(txn.walletImpact)}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -11,6 +11,7 @@ export function useTransactionQueue() {
 export function TransactionQueueProvider({ children }) {
     const [queue, setQueue] = useState([]);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [offline, setOffline] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     // Load queue from local storage on mount
@@ -25,7 +26,10 @@ export function TransactionQueueProvider({ children }) {
         }
 
         const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
+        const handleOffline = () => {
+        setIsOnline(false);
+        setOffline(true);
+    };
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -102,12 +106,36 @@ export function TransactionQueueProvider({ children }) {
                     console.log("Network unavailable, queuing...");
                     setQueue(prev => [...prev, { ...data, queuedAt: Date.now() }]);
                     return { success: true, queued: true, message: 'Offline: Transaction Queued' };
+        }
+    };
+
+    const goOffline = () => {
+        setOffline(true);
+        setIsOnline(false);
+    };
+
+    const goOnline = () => {
+        setOffline(false);
+        setIsOnline(true);
+    };
                 }
                 throw error; // Re-throw logic errors
             }
         } else {
             setQueue(prev => [...prev, { ...data, queuedAt: Date.now() }]);
             return { success: true, queued: true, message: 'Offline: Transaction Queued' };
+        }
+    };
+
+    const goOffline = () => {
+        setOffline(true);
+        setIsOnline(false);
+    };
+
+    const goOnline = () => {
+        setOffline(false);
+        setIsOnline(true);
+    };
         }
     };
 

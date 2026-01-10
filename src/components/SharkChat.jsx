@@ -27,7 +27,7 @@ function TransactionDraft({ draft, onComplete }) {
 
     const handleExecute = async () => {
         setLoading(true);
-        const functions = getFunctions(getApp(), 'asia-southeast2');
+        const functions = getFunctions(getApp(), 'asia-southeast1');
         console.log("DEBUG: Executing with functions instance:", functions);
 
         // --- CONTEXT INJECTION FIX ---

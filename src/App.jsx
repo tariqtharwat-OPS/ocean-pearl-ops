@@ -14,6 +14,7 @@ import ReportsViewer from './pages/Reports/ReportsViewer';
 import WalletManager from './pages/WalletManager';
 import DashboardV1 from './pages/Admin/DashboardV1';
 import NotFound from './pages/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function PrivateRoute({ children, allowedRoles = [] }) {
     const { currentUser } = useAuth();
@@ -121,7 +122,7 @@ export default function App() {
         <BrowserRouter>
             <AuthProvider>
                 <TransactionQueueProvider>
-                    <AppRoutes />
+                    <ErrorBoundary><AppRoutes /></ErrorBoundary>
                 </TransactionQueueProvider>
             </AuthProvider>
         </BrowserRouter>

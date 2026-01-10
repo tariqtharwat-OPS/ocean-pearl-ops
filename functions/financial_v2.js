@@ -1,4 +1,8 @@
-const functions = require('firebase-functions');
+const functions = require("firebase-functions");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+// Set the region for all functions in this file
+setGlobalOptions({ region: "asia-southeast1" });
 const admin = require('firebase-admin');
 const db = admin.firestore();
 
@@ -39,7 +43,7 @@ async function verifyAction(uid, requiredScope, requiredTargetId) {
 }
 
 // === 1. CREATE FINANCIAL REQUEST ===
-exports.createFinancialRequest = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.createFinancialRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
     const { type, amount, description, locationId, unitId, category, proofImage } = data;
@@ -48,7 +52,8 @@ exports.createFinancialRequest = functions.region('asia-southeast2').https.onCal
     // type: 'EXPENSE' (Buy something) | 'FUNDING' (Request money from HQ)
     // category: 'Ice', 'Fuel', etc.
 
-    if (!amount || amount <= 0) throw new functions.https.HttpsError('invalid-argument', 'Amount must be > 0');
+    if (!amount || amount <= 0) throw new functions.https.HttpsError("invalid-argument", "Amount must be > 0");
+    if (amount > 1000000000) throw new functions.https.HttpsError("invalid-argument", "Amount cannot exceed 1,000,000,000");
     if (!description) throw new functions.https.HttpsError('invalid-argument', 'Description required');
 
     const userRef = db.collection('users').doc(context.auth.uid);
@@ -90,15 +95,19 @@ exports.createFinancialRequest = functions.region('asia-southeast2').https.onCal
         status: 'PENDING',
         proofImage: proofImage || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        history: [{ action: 'CREATED', by: context.auth.uid, at: new Date().toISOString() }]
+        history: [{ action: 'CREATED', by: context.auth.uid, at: admin.firestore.FieldValue.serverTimestamp() }]
     };
 
-    const res = await db.collection('financial_requests').add(requestData);
+    const res = await db.runTransaction(async (t) => {
+        const newRequestRef = db.collection("financial_requests").doc();
+        t.set(newRequestRef, requestData);
+        return newRequestRef;
+    });
     return { success: true, requestId: res.id };
 });
 
 // === 2. APPROVE FINANCIAL REQUEST ===
-exports.approveFinancialRequest = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.approveFinancialRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
     const { requestId } = data;
 
@@ -214,7 +223,7 @@ exports.approveFinancialRequest = functions.region('asia-southeast2').https.onCa
             status: 'APPROVED',
             approverId: context.auth.uid,
             approvedAt: timestamp,
-            history: admin.firestore.FieldValue.arrayUnion({ action: 'APPROVED', by: context.auth.uid, at: new Date().toISOString() })
+            history: admin.firestore.FieldValue.arrayUnion({ action: 'APPROVED', by: context.auth.uid, at: admin.firestore.FieldValue.serverTimestamp() })
         });
     });
 
@@ -222,7 +231,7 @@ exports.approveFinancialRequest = functions.region('asia-southeast2').https.onCa
 });
 
 // === 3. REJECT REQUEST ===
-exports.rejectFinancialRequest = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.rejectFinancialRequest = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
     const { requestId, reason } = data;
 
@@ -245,7 +254,7 @@ exports.rejectFinancialRequest = functions.region('asia-southeast2').https.onCal
             rejectionReason: reason || 'No reason provided',
             approverId: context.auth.uid, // "Actioner"
             rejectedAt: admin.firestore.FieldValue.serverTimestamp(),
-            history: admin.firestore.FieldValue.arrayUnion({ action: 'REJECTED', by: context.auth.uid, at: new Date().toISOString(), reason: reason })
+            history: admin.firestore.FieldValue.arrayUnion({ action: 'REJECTED', by: context.auth.uid, at: admin.firestore.FieldValue.serverTimestamp(), reason: reason })
         });
     });
 

@@ -1,4 +1,8 @@
 const functions = require('firebase-functions');
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+// Set the region for all functions in this file
+setGlobalOptions({ region: "asia-southeast1" });
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -34,7 +38,7 @@ exports.rejectFinancialRequest = financialV2.rejectFinancialRequest;
  * Single entry point for all operational transactions.
  * Enforces server-side validation, calculations, and atomic stock updates.
  */
-exports.postTransaction = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.postTransaction = functions.https.onCall(async (data, context) => {
     // 1. Authentication Check
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
@@ -387,7 +391,7 @@ exports.postTransaction = functions.region('asia-southeast2').https.onCall(async
  * 2. Replays all 'transactions' to rebuild strict Ledger state.
  * 3. Corrects historical 'Single-Sided' transfers to be 'Double-Sided'.
  */
-exports.repairSystemWallets = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.repairSystemWallets = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
     // Safety: Only super-admin
@@ -461,7 +465,7 @@ exports.repairSystemWallets = functions.region('asia-southeast2').https.onCall(a
  * Allows 'super_admin' or 'admin' to create new users without signing out.
  * Molds the Firestore 'users' profile immediately.
  */
-exports.createSystemUser = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.createSystemUser = functions.https.onCall(async (data, context) => {
     // 1. Auth Check: Must be Admin
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
@@ -516,7 +520,7 @@ exports.createSystemUser = functions.region('asia-southeast2').https.onCall(asyn
  * - Toggle Disable/Enable (Auth & Firestore)
  * - Reset Password (to a temporary one)
  */
-exports.manageUser = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.manageUser = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
     // Auth Check
@@ -624,7 +628,7 @@ async function sendWhatsAppAlert(message, targetPhone) {
  * 
  * One-time utility to inject the International Standard Commercial Taxonomy.
  */
-exports.seedTaxonomy = functions.region('asia-southeast2').https.onCall(async (data, context) => {
+exports.seedTaxonomy = functions.https.onCall(async (data, context) => {
     if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
     // Auth Check: Super Admin Only
@@ -676,7 +680,7 @@ exports.seedTaxonomy = functions.region('asia-southeast2').https.onCall(async (d
 /**
  * auditTransaction (Shark AI - Operations Intelligence)
  */
-exports.auditTransaction = functions.region('asia-southeast2').firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
+exports.auditTransaction = functions.firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
     const txn = snap.data();
     const txnId = context.params.txnId;
 
@@ -750,7 +754,7 @@ exports.auditTransaction = functions.region('asia-southeast2').firestore.documen
  * - This allows the Admin Dashboard to load "Total Cash" and "Daily Volume" instantly
  *   without querying 10k+ records.
  */
-exports.transactionAggregator = functions.region('asia-southeast2').firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
+exports.transactionAggregator = functions.firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
     const txn = snap.data();
     const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const statsRef = db.doc(`dashboard_stats/${dateStr}`);
@@ -795,7 +799,7 @@ exports.transactionAggregator = functions.region('asia-southeast2').firestore.do
  * Fetches context (Inventory, recent movements) to answer questions proactively.
  * "How much Tuna do we have?" -> "We have 450kg of Yellowfin Tuna in Block A."
  */
-exports.sharkChat = functions.region('asia-southeast2').firestore.document('messages/{msgId}').onCreate(async (snap, context) => {
+exports.sharkChat = functions.firestore.document('messages/{msgId}').onCreate(async (snap, context) => {
     const msg = snap.data();
 
     // 1. Ignore own messages (Loop prevention)
@@ -872,7 +876,7 @@ exports.sharkChat = functions.region('asia-southeast2').firestore.document('mess
  * Receives POST requests from Twilio when a user messaging the bot.
  * Connects directly to Shark Brain and replies via TwiML.
  */
-exports.twilioWebhook = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.twilioWebhook = functions.https.onRequest(async (req, res) => {
     const MessagingResponse = require('twilio').twiml.MessagingResponse;
     const twiml = new MessagingResponse();
 
@@ -933,7 +937,7 @@ exports.twilioWebhook = functions.region('asia-southeast2').https.onRequest(asyn
 /**
  * injectDay1 (Emergency Bypass)
  */
-exports.injectDay1 = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.injectDay1 = functions.https.onRequest(async (req, res) => {
     // Basic Security
     if (req.query.key !== 'antigravity_secret') return res.status(403).send('Forbidden');
 
@@ -990,3 +994,6 @@ exports.injectDay1 = functions.region('asia-southeast2').https.onRequest(async (
         res.status(500).send(e.message);
     }
 });
+
+const api = require("./api");
+exports.getFinancialRequests = api.getFinancialRequests;
