@@ -14,6 +14,13 @@ export default function Layout() {
     const location = useLocation();
     const { queue, isOnline } = useTransactionQueue();
     const { t, i18n } = useTranslation();
+    const [activeRoute, setActiveRoute] = React.useState(location.pathname);
+
+    // Track location changes and update active route
+    React.useEffect(() => {
+        setActiveRoute(location.pathname);
+        console.log('📍 Navigation updated to:', location.pathname);
+    }, [location.pathname]);
 
     const changeLanguage = () => {
         const nextLang = i18n.language === 'en' ? 'id' : 'en';
@@ -182,26 +189,27 @@ export default function Layout() {
                     {/* Always Home */}
                     <NavLink
                         to="/"
-                        className={({ isActive }) =>
-                            `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? 'text-secondary' : 'text-gray-500'}`
-                        }
+                        className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeRoute === '/' ? 'text-secondary' : 'text-gray-500'}`}
+                        onClick={() => setActiveRoute('/')}
                     >
                         <Menu size={20} />
                         <span className="text-[10px] font-medium">Home</span>
                     </NavLink>
 
-                    {navItems.map((item) => (
-                        <NavLink
-                            key={item.to}
-                            to={item.to}
-                            className={({ isActive }) =>
-                                `flex flex-col items-center justify-center w-full h-full space-y-1 ${isActive ? 'text-secondary' : 'text-gray-500'}`
-                            }
-                        >
-                            <item.icon size={20} />
-                            <span className="text-[10px] font-medium">{item.label}</span>
-                        </NavLink>
-                    ))}
+                    {navItems.map((item) => {
+                        const isActive = activeRoute === item.to;
+                        return (
+                            <NavLink
+                                key={item.to}
+                                to={item.to}
+                                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${isActive ? 'text-secondary' : 'text-gray-500'}`}
+                                onClick={() => setActiveRoute(item.to)}
+                            >
+                                <item.icon size={20} />
+                                <span className="text-[10px] font-medium">{item.label}</span>
+                            </NavLink>
+                        );
+                    })}
                 </div>
             </nav>
             {/* Shark AI Assistant */}

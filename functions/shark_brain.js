@@ -133,6 +133,53 @@ async function gatherContext(message, userContext) {
 }
 
 
+// --- RETRY LOGIC WITH EXPONENTIAL BACKOFF ---
+
+/**
+ * callGeminiWithRetry
+ * Wraps Gemini API calls with exponential backoff retry logic.
+ * Handles 429 rate limit errors gracefully.
+ */
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 1000; // 1 second
+const MAX_DELAY_MS = 30000; // 30 seconds
+
+async function callGeminiWithRetry(apiCall, retryCount = 0) {
+    try {
+        return await apiCall();
+    } catch (error) {
+        // Check if it's a rate limit error (429)
+        const isRateLimitError = error.code === 429 || 
+                                 (error.message && error.message.includes('Resource exhausted'));
+        
+        if (isRateLimitError && retryCount < MAX_RETRIES) {
+            // Calculate exponential backoff delay
+            const delay = Math.min(
+                INITIAL_DELAY_MS * Math.pow(2, retryCount),
+                MAX_DELAY_MS
+            );
+            
+            // Add jitter to prevent thundering herd
+            const jitter = Math.random() * delay * 0.1;
+            const totalDelay = delay + jitter;
+            
+            console.warn(
+                `⚠️ Rate limit hit (attempt ${retryCount + 1}/${MAX_RETRIES}). ` +
+                `Retrying in ${Math.round(totalDelay)}ms...`
+            );
+            
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, totalDelay));
+            
+            // Recursive retry
+            return callGeminiWithRetry(apiCall, retryCount + 1);
+        }
+        
+        // If not a rate limit error or max retries exceeded, throw
+        throw error;
+    }
+}
+
 // --- MAIN AI FUNCTIONS ---
 
 /**
@@ -161,14 +208,16 @@ Return JSON:
 `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: [
-                {
-                    role: 'user',
-                    parts: [{ text: prompt }]
-                }
-            ],
+        const response = await callGeminiWithRetry(async () => {
+            return await ai.models.generateContent({
+                model: MODEL_NAME,
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [{ text: prompt }]
+                    }
+                ],
+            });
         });
 
         const text = response.text;
@@ -309,11 +358,13 @@ Return a JSON object.
         // Add User Message
         contents[0].parts[0].text += `\nUSER MESSAGE: "${messageText}"`;
 
-        const response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            systemInstruction: "You are a JSON-speaking Operations AI. Always return valid structured JSON.",
-            generationConfig: { responseMimeType: "application/json" }, // Force JSON
-            contents: contents
+        const response = await callGeminiWithRetry(async () => {
+            return await ai.models.generateContent({
+                model: MODEL_NAME,
+                systemInstruction: "You are a JSON-speaking Operations AI. Always return valid structured JSON.",
+                generationConfig: { responseMimeType: "application/json" }, // Force JSON
+                contents: contents
+            });
         });
 
         let jsonRaw = response.text;
