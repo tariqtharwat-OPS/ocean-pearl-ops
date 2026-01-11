@@ -1,6 +1,5 @@
 
 // -- GLOBAL CONSTANTS --
-import { UNIT_TEMPLATES } from './constants/units';
 
 export const ITEM_TYPES = {
     SEAFOOD: 'seafood',
