@@ -35,7 +35,7 @@ export default function ProductionRun() {
     });
 
     const [rules, setRules] = useState({});
-    const [outputs, setOutputs] = useState([{ ...DEFAULT_OUTPUT, id: Date.now() }]);
+    const [outputs, setOutputs] = useState(() => [{ ...DEFAULT_OUTPUT, id: Date.now() }]);
 
     // -- WASTE & SUMMARY --
     const [waste, setWaste] = useState({ quantityKg: 0, value: 0, description: 'General Waste/Trim' });
