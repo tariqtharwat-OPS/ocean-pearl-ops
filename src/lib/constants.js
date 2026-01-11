@@ -52,32 +52,56 @@ export const getSizeList = (itemId) => {
 // -- LOCATIONS (Restored) --
 // -- LOCATIONS (Restored & Enhanced) --
 // -- LOCATIONS (Synced with DB Reality) --
+// Lazy initialization to avoid circular dependency
 
-export const LOCATIONS = {
-    jakarta: {
-        id: 'jakarta',
-        label: 'HQ Jakarta',
-        units: [
-            { id: 'office', label: 'Office', type: 'OFFICE', capabilities: UNIT_TEMPLATES.OFFICE.capabilities },
-            { id: 'cold_storage', label: 'Cold Storage', type: 'COLD_STORAGE', capabilities: UNIT_TEMPLATES.COLD_STORAGE.capabilities }
-        ]
-    },
-    kaimana: {
-        id: 'kaimana',
-        label: 'Kaimana',
-        units: [
-            { id: 'gudang_ikan_teri', label: 'Gudang Ikan Teri', type: 'PROCESSING_DRY', capabilities: UNIT_TEMPLATES.PROCESSING_DRY.capabilities },
-            { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: UNIT_TEMPLATES.FROZEN_FACTORY.capabilities }
-        ]
-    },
-    saumlaki: {
-        id: 'saumlaki',
-        label: 'Saumlaki',
-        units: [
-            { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: UNIT_TEMPLATES.FROZEN_FACTORY.capabilities }
-        ]
+let _LOCATIONS_CACHE = null;
+
+export function getLocations() {
+    if (!_LOCATIONS_CACHE) {
+        _LOCATIONS_CACHE = {
+            jakarta: {
+                id: 'jakarta',
+                label: 'HQ Jakarta',
+                units: [
+                    { id: 'office', label: 'Office', type: 'OFFICE', capabilities: UNIT_TEMPLATES.OFFICE.capabilities },
+                    { id: 'cold_storage', label: 'Cold Storage', type: 'COLD_STORAGE', capabilities: UNIT_TEMPLATES.COLD_STORAGE.capabilities }
+                ]
+            },
+            kaimana: {
+                id: 'kaimana',
+                label: 'Kaimana',
+                units: [
+                    { id: 'gudang_ikan_teri', label: 'Gudang Ikan Teri', type: 'PROCESSING_DRY', capabilities: UNIT_TEMPLATES.PROCESSING_DRY.capabilities },
+                    { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: UNIT_TEMPLATES.FROZEN_FACTORY.capabilities }
+                ]
+            },
+            saumlaki: {
+                id: 'saumlaki',
+                label: 'Saumlaki',
+                units: [
+                    { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: UNIT_TEMPLATES.FROZEN_FACTORY.capabilities }
+                ]
+            }
+        };
     }
-};
+    return _LOCATIONS_CACHE;
+}
+
+// Backwards compatibility - export as constant that calls the function
+export const LOCATIONS = new Proxy({}, {
+    get(target, prop) {
+        return getLocations()[prop];
+    },
+    ownKeys() {
+        return Object.keys(getLocations());
+    },
+    getOwnPropertyDescriptor(target, prop) {
+        return {
+            enumerable: true,
+            configurable: true
+        };
+    }
+});
 
 // -- UNITS MAP (Legacy Support / Quick Lookup) --
 export const UNITS = {
