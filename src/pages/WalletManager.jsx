@@ -313,7 +313,7 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
 }
 
 // === FORM: Create Request ===
-function CreateRequestForm({ onClose, currentUfunction CreateRequestForm({ onClose, currentUser, isManager, functions }) {
+function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
     const [type, setType] = useState('EXPENSE'); // EXPENSE or FUNDING
     const [amount, setAmount] = useState('');
     const [desc, setDesc] = useState('');
@@ -356,8 +356,6 @@ function CreateRequestForm({ onClose, currentUfunction CreateRequestForm({ onClo
             alert(`❌ Error creating request: ${e.message}`);
         } finally {
             setSubmitting(false);
-        }
-    };ting(false);
         }
     };
 

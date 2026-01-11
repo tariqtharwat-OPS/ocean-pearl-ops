@@ -46,7 +46,10 @@ if (location.hostname === "localhost") {
     });
 }
 
-export { db, auth };
+// Default functions instance for backward compatibility
+const functions = getFunctionsForRegion('asia-southeast1');
+
+export { db, auth, functions };
 if (typeof window !== 'undefined') {
     window._debug_firebase = { app, db, functions, auth };
 }

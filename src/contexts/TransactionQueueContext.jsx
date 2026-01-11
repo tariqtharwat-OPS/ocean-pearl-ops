@@ -27,9 +27,9 @@ export function TransactionQueueProvider({ children }) {
 
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => {
-        setIsOnline(false);
-        setOffline(true);
-    };
+            setIsOnline(false);
+            setOffline(true);
+        };
 
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -106,18 +106,6 @@ export function TransactionQueueProvider({ children }) {
                     console.log("Network unavailable, queuing...");
                     setQueue(prev => [...prev, { ...data, queuedAt: Date.now() }]);
                     return { success: true, queued: true, message: 'Offline: Transaction Queued' };
-        }
-    };
-
-    const goOffline = () => {
-        setOffline(true);
-        setIsOnline(false);
-    };
-
-    const goOnline = () => {
-        setOffline(false);
-        setIsOnline(true);
-    };
                 }
                 throw error; // Re-throw logic errors
             }
@@ -136,11 +124,9 @@ export function TransactionQueueProvider({ children }) {
         setOffline(false);
         setIsOnline(true);
     };
-        }
-    };
 
     return (
-        <TransactionQueueContext.Provider value={{ addTransaction, queue, isOnline }}>
+        <TransactionQueueContext.Provider value={{ addTransaction, queue, isOnline, goOffline, goOnline }}>
             {children}
         </TransactionQueueContext.Provider>
     );
