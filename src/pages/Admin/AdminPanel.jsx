@@ -400,6 +400,31 @@ function UserEditModal({ user, onClose, onSuccess }) {
         }
     };
 
+    const handleDeleteUser = async () => {
+        if (!confirm(`⚠️ WARNING: This will PERMANENTLY DELETE ${user.email} from both Authentication and Firestore.\n\nThis action CANNOT be undone!\n\nType the user's email to confirm deletion.`)) return;
+        
+        const confirmation = prompt(`Type "${user.email}" to confirm permanent deletion:`);
+        if (confirmation !== user.email) {
+            alert('Email does not match. Deletion cancelled.');
+            return;
+        }
+        
+        setUpdating(true);
+        try {
+            const manageUser = httpsCallable(functions, 'manageUser');
+            await manageUser({
+                targetUid: user.id,
+                action: 'delete_user',
+                payload: {}
+            });
+            alert(`User ${user.email} has been permanently deleted.`);
+            onSuccess('User deleted successfully.');
+        } catch (e) {
+            alert(`Failed to delete user: ${e.message}`);
+            setUpdating(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-fade-in">
@@ -461,12 +486,17 @@ function UserEditModal({ user, onClose, onSuccess }) {
                         {updating ? 'Saving...' : 'Save Changes'}
                     </button>
 
-                    <div className="border-t pt-4 mt-4 grid grid-cols-2 gap-4">
-                        <button onClick={handleResetPassword} className="py-2 text-sm text-blue-600 hover:bg-blue-50 rounded border border-blue-200">
-                            🔑 Reset Password
-                        </button>
-                        <button onClick={handleToggleStatus} className={`py-2 text-sm rounded border ${user.disabled ? 'text-green-600 border-green-200 hover:bg-green-50' : 'text-red-600 border-red-200 hover:bg-red-50'}`}>
-                            {user.disabled ? '✅ Enable User' : '⛔ Disable User'}
+                    <div className="border-t pt-4 mt-4 space-y-2">
+                        <div className="grid grid-cols-2 gap-4">
+                            <button onClick={handleResetPassword} className="py-2 text-sm text-blue-600 hover:bg-blue-50 rounded border border-blue-200">
+                                🔑 Reset Password
+                            </button>
+                            <button onClick={handleToggleStatus} className={`py-2 text-sm rounded border ${user.disabled ? 'text-green-600 border-green-200 hover:bg-green-50' : 'text-red-600 border-red-200 hover:bg-red-50'}`}>
+                                {user.disabled ? '✅ Enable User' : '⛔ Disable User'}
+                            </button>
+                        </div>
+                        <button onClick={handleDeleteUser} className="w-full py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded border border-red-700">
+                            🗑️ Delete User Permanently
                         </button>
                     </div>
                 </div>

@@ -573,6 +573,22 @@ exports.manageUser = functions.https.onCall(async (data, context) => {
             return { success: true, message: 'Password reset.', tempPassword };
         }
 
+        if (action === 'delete_user') {
+            // Prevent deletion of super admin accounts
+            const targetUser = await admin.auth().getUser(targetUid);
+            if (targetUser.email === 'tariq@oceanpearlseafood.com' || targetUser.email === 'info@oceanpearlseafood.com') {
+                throw new functions.https.HttpsError('permission-denied', 'Cannot delete super admin accounts.');
+            }
+            
+            // 1. Delete from Firebase Authentication
+            await admin.auth().deleteUser(targetUid);
+            
+            // 2. Delete from Firestore users collection
+            await db.collection('users').doc(targetUid).delete();
+            
+            return { success: true, message: 'User permanently deleted.' };
+        }
+
         throw new functions.https.HttpsError('invalid-argument', 'Unknown action');
 
     } catch (err) {
