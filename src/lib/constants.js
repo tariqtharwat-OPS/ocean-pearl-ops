@@ -1,5 +1,6 @@
 
 // -- GLOBAL CONSTANTS --
+import { UNIT_TEMPLATES } from './constants/units';
 
 export const ITEM_TYPES = {
     SEAFOOD: 'seafood',
@@ -51,7 +52,6 @@ export const getSizeList = (itemId) => {
 // -- LOCATIONS (Restored) --
 // -- LOCATIONS (Restored & Enhanced) --
 // -- LOCATIONS (Synced with DB Reality) --
-import { UNIT_TEMPLATES } from './constants/units';
 
 export const LOCATIONS = {
     jakarta: {
