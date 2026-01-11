@@ -34,7 +34,7 @@ export default function ProductionRun() {
         refCode: ''     // Batch Code
     });
 
-    const [rules, setRules] = useState(PROCESSING_CONFIG.default);
+    const [rules, setRules] = useState(PROCESSING_CONFIG.tuna || {});
     const [outputs, setOutputs] = useState([{ ...DEFAULT_OUTPUT, id: Date.now() }]);
 
     // -- WASTE & SUMMARY --
