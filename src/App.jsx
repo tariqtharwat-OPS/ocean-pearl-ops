@@ -7,7 +7,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Receiving from './pages/Receiving';
 import Expenses from './pages/Expenses';
-import ProductionRun from './pages/ProductionRun';
+const ProductionRun = React.lazy(() => import('./pages/ProductionRun'));
 import SalesInvoice from './pages/SalesInvoice';
 import AdminPanel from './pages/Admin/AdminPanel';
 import ReportsViewer from './pages/Reports/ReportsViewer';
@@ -71,7 +71,9 @@ function AppRoutes() {
                 } />
                 <Route path="/cold-storage" element={
                     <PrivateRoute allowedRoles={ALL_OPS}>
-                        <ProductionRun />
+                        <React.Suspense fallback={<div>Loading...</div>}>
+                            <ProductionRun />
+                        </React.Suspense>
                     </PrivateRoute>
                 } />
                 <Route path="/wallet" element={
