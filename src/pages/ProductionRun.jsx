@@ -6,7 +6,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { ArrowLeft, Plus, Trash2, Gauge, AlertTriangle, CheckCircle, Save, Printer, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { getProcessingRules, GRADES, PROCESSING_CONFIG, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
+import { getProcessingRules, GRADES, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
 import { PROCESS_RECIPES } from '../lib/constants/recipes';
 
 const DEFAULT_OUTPUT = { process: '', grade: '', packaging: '', quantityKg: '', boxCount: '', id: 0 };
@@ -105,7 +105,7 @@ export default function ProductionRun() {
     // -- LOAD RULES ON ITEM SELECT --
     useEffect(() => {
         if (!input.rawItemId) {
-            setRules(PROCESSING_CONFIG.default);
+            setRules(getProcessingRules(null));
             return;
         }
         setRules(getProcessingRules(input.rawItemId));
