@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactionQueue } from '../contexts/TransactionQueueContext';
 import { db } from '../lib/firebase';
@@ -79,28 +79,24 @@ export default function ProductionRun() {
     // -- DERIVE FILTERED PRODUCTS --
     // const { PROCESS_RECIPES } = require('../lib/constants/recipes'); // Import local
 
-    // Determine Recipe based on Input
+    // Determine Recipe based on Input - memoized to avoid recomputation
+    const currentRecipe = useMemo(() => {
+        if (!input.rawItemId) return null;
+        if (input.rawItemId.includes('teri') || input.rawItemId.includes('anchovy')) {
+            return PROCESS_RECIPES.ANCHOVY_DRYING;
+        }
+        return PROCESS_RECIPES.FROZEN_CUTS;
+    }, [input.rawItemId]);
 
-    // Determine Recipe based on Input
-    const getRecipe = (rawItemId) => {
-        if (!rawItemId) return null;
-        if (rawItemId.includes('teri') || rawItemId.includes('anchovy')) return PROCESS_RECIPES.ANCHOVY_DRYING;
-        return PROCESS_RECIPES.FROZEN_CUTS; // Fallback or Specific
-    }
-
-    const currentRecipe = getRecipe(input.rawItemId);
-
-    const getFilteredProducts = () => {
+    // Get filtered products based on current recipe - memoized
+    const availableProducts = useMemo(() => {
         if (!currentRecipe) return [];
-        // Map Recipe Outputs to Select Options
         return currentRecipe.outputs.map(o => ({
             id: o.id,
-            name: o.label, // Use label for display
+            name: o.label,
             active: true
         }));
-    };
-
-    const availableProducts = getFilteredProducts();
+    }, [currentRecipe]);
 
     // -- LOAD RULES ON ITEM SELECT --
     useEffect(() => {
