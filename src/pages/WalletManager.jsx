@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { LOCATIONS } from '../lib/constants';
 import { ArrowLeft, Plus, Check, X, Clock, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // V2 API
 import { httpsCallable } from 'firebase/functions';
-import { getFunctionsForRegion } from '../lib/firebase';
+import { getFunctionsForRegion, functions } from '../lib/firebase';
 import { getFunctionRegion } from '../lib/functionLocator';
 
 export default function WalletManager() {
@@ -16,7 +16,7 @@ export default function WalletManager() {
     const { currentUser } = useAuth();
     const [activeTab, setActiveTab] = useState('requests');
     const [showSendFunds, setShowSendFunds] = useState(false);
-    
+
 
     // Permissions
     const isHQ = currentUser?.role_v2 === 'HQ_ADMIN';

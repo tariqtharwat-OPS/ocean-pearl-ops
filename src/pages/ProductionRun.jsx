@@ -125,6 +125,7 @@ export default function ProductionRun() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const { addTransaction } = useTransactionQueue();
+    const { t } = useTranslation();
 
     // -- STATE --
     // -- STATE --
@@ -144,7 +145,7 @@ export default function ProductionRun() {
         refCode: ''     // Batch Code
     });
 
-    const [rules, setRules] = useState({});
+    const [rules, setRules] = useState(() => getProcessingRules(null));
     const [outputs, setOutputs] = useState(() => [{ ...DEFAULT_OUTPUT, id: Date.now() }]);
 
     // -- WASTE & SUMMARY --
@@ -370,7 +371,7 @@ export default function ProductionRun() {
     const locLabel = LOCATIONS[currentUser?.locationId]?.label || currentUser?.locationId;
     const unitLabel = LOCATIONS[currentUser?.locationId]?.units.find(u => u.id === currentUser?.unitId)?.label || currentUser?.unitId;
 
-    const { t } = useTranslation();
+
 
     // Helper to get raw name
     const getRawName = (id) => {

@@ -20,31 +20,34 @@ const db = getFirestore(app);
 const functionsInstances = {};
 
 export const getFunctionsForRegion = (region) => {
-  if (!functionsInstances[region]) {
-    functionsInstances[region] = getFunctions(app, region);
-    if (location.hostname === "localhost") {
-      connectFunctionsEmulator(functionsInstances[region], 'localhost', 5001);
+    if (!functionsInstances[region]) {
+        functionsInstances[region] = getFunctions(app, region);
+        if (location.hostname === "localhost") {
+            connectFunctionsEmulator(functionsInstances[region], 'localhost', 5001);
+        }
     }
-  }
-  return functionsInstances[region];
+    return functionsInstances[region];
 };
 const auth = getAuth(app);
 
 // Use emulators in development
+// Emulator connection disabled for production verification
+/*
 if (location.hostname === "localhost") {
     connectFirestoreEmulator(db, 'localhost', 8080);
     
     connectAuthEmulator(auth, 'http://localhost:9099');
 } else {
-    // Only enable persistence if NOT using emulators to avoid conflicts
-    enableIndexedDbPersistence(db).catch((err) => {
-        if (err.code == 'failed-precondition') {
-            console.warn('Persistence failed: Multiple tabs open');
-        } else if (err.code == 'unimplemented') {
-            console.warn('Persistence failed: Not supported');
-        }
-    });
-}
+*/
+// Only enable persistence if NOT using emulators to avoid conflicts
+enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code == 'failed-precondition') {
+        console.warn('Persistence failed: Multiple tabs open');
+    } else if (err.code == 'unimplemented') {
+        console.warn('Persistence failed: Not supported');
+    }
+});
+// }
 
 // Default functions instance for backward compatibility
 const functions = getFunctionsForRegion('asia-southeast1');
