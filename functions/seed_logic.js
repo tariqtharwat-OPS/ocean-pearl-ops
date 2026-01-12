@@ -1,4 +1,4 @@
-const functions = require('firebase-functions');
+const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -6,7 +6,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 // However, ensure we have an app context if accessed in isolation (which shouldn't happen in Cloud Functions env as index.js is entry).
 // We will access Firestore lazily inside the function.
 
-exports.performGreatWipe = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.performGreatWipe = onRequest({ region: "asia-southeast2" }, async (req, res) => {
     // Lazy load DB to ensure App is initialized by index.js by the time this runs
     const db = getFirestore('ops1');
 

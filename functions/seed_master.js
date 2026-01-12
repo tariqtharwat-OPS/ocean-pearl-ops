@@ -1,4 +1,4 @@
-const functions = require('firebase-functions');
+const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
 
@@ -12,7 +12,7 @@ const db = getFirestore('ops1');
  * 
  * Seeding Phase 10 Master Data for Dynamic Commercial Core
  */
-exports.seedProcessingRules = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.seedProcessingRules = onRequest({ region: "asia-southeast2" }, async (req, res) => {
     try {
         const batch = db.batch();
 

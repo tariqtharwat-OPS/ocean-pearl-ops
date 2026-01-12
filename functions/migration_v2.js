@@ -1,9 +1,9 @@
-const functions = require('firebase-functions');
+const { onRequest, onCall } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const db = admin.firestore();
 
 // === BACKUP UTILITY ===
-exports.backupFirestore = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.backupFirestore = onRequest({ region: "asia-southeast2" }, async (req, res) => {
     // Basic Security: Check for a secret query param if needed, or just allow for now as it's a dev tool 
     // real security should be context.auth but onRequest is public. 
     // We'll rely on the obscure URL for this quick maintenance step or verify auth header manually?
@@ -56,11 +56,11 @@ exports.backupFirestore = functions.region('asia-southeast2').https.onRequest(as
 });
 
 // === MIGRATION LOGIC (Phase 1) ===
-exports.migrateSchemaV2 = functions.region('asia-southeast2').https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.migrateSchemaV2 = onCall({ region: "asia-southeast2" }, async (request) => {
+    if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
     // Safety Check: Only specific admin
-    const caller = await admin.auth().getUser(context.auth.uid);
+    const caller = await admin.auth().getUser(request.auth.uid);
     if (!caller.email || !caller.email.includes('@oceanpearlseafood.com')) {
         throw new functions.https.HttpsError('permission-denied', 'Admin only.');
     }
@@ -142,10 +142,10 @@ exports.migrateSchemaV2 = functions.region('asia-southeast2').https.onCall(async
     return { success: true, ops: opCount };
 });
 
-exports.migrateUsersV2 = functions.region('asia-southeast2').https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.migrateUsersV2 = onCall({ region: "asia-southeast2" }, async (request) => {
+    if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
 
-    const caller = await admin.auth().getUser(context.auth.uid);
+    const caller = await admin.auth().getUser(request.auth.uid);
     if (!caller.email || !caller.email.includes('@oceanpearlseafood.com')) {
         throw new functions.https.HttpsError('permission-denied', 'Admin only.');
     }
@@ -201,9 +201,9 @@ exports.migrateUsersV2 = functions.region('asia-southeast2').https.onCall(async 
     return { success: true, ops: opCount };
 });
 
-exports.revertUsersV1 = functions.region('asia-southeast2').https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
-    const caller = await admin.auth().getUser(context.auth.uid);
+exports.revertUsersV1 = onCall({ region: "asia-southeast2" }, async (request) => {
+    if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+    const caller = await admin.auth().getUser(request.auth.uid);
     if (!caller.email || !caller.email.includes('@oceanpearlseafood.com')) throw new functions.https.HttpsError('permission-denied', 'Admin only.');
 
     const batch = db.batch();
