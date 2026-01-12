@@ -31,8 +31,6 @@ export const SIZE_CONFIG = {
     general: ['0.3-0.5 kg', '0.5-1 kg', '1-3 kg', '3-5 kg', '5-10 kg', '10 kg up']
 };
 
-export const SIZES = SIZE_CONFIG.general; // Backwards compatibility
-
 export const getSizeList = (itemId) => {
     if (!itemId) return SIZE_CONFIG.general;
     const lower = itemId.toLowerCase();
@@ -143,3 +141,6 @@ export const getProcessingRules = (itemId) => {
     if (lower.includes('octopus')) return PROCESSING_CONFIG.octopus;
     return PROCESSING_CONFIG.default;
 };
+
+// Backwards compatibility - export at end to ensure SIZE_CONFIG is initialized
+export const SIZES = SIZE_CONFIG.general;
