@@ -3,8 +3,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { LOCATIONS } from '../lib/constants';
-import { ArrowLeft, Plus, Check, X, Clock, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Plus, Check, X, Clock, AlertTriangle, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useWriteGuard } from '../lib/writeGuard';
+import OperateAsConfirmation from '../components/OperateAsConfirmation';
 
 // V2 API
 import { httpsCallable } from 'firebase/functions';
@@ -17,6 +19,10 @@ export default function WalletManager() {
     const [activeTab, setActiveTab] = useState('requests');
     const [showSendFunds, setShowSendFunds] = useState(false);
 
+    // SAFETY: Close modals when location changes
+    useEffect(() => {
+        setShowSendFunds(false);
+    }, [currentUser?.locationId]);
 
     // Permissions
     const isHQ = currentUser?.role_v2 === 'HQ_ADMIN';
@@ -157,6 +163,11 @@ function RequestsView({ currentUser, isManager, isHQ, functions, onShowSendFunds
     const [requests, setRequests] = useState([]);
     const [showCreate, setShowCreate] = useState(false);
 
+    // SAFETY: Close modal when location changes
+    useEffect(() => {
+        setShowCreate(false);
+    }, [currentUser?.locationId]);
+
     // Fetch Requests related to user scope
     useEffect(() => {
         let q;
@@ -241,7 +252,11 @@ function RequestsView({ currentUser, isManager, isHQ, functions, onShowSendFunds
 }
 
 function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
+    const authContext = useAuth();
+    const { guardWrite, isReadOnly } = useWriteGuard(authContext);
     const [processing, setProcessing] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [pendingAction, setPendingAction] = useState(null);
 
     // Can Approve Logic
     // HQ approves FUNDING.
@@ -251,6 +266,17 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
     // Unit Op cannot approve anything.
 
     const handleAction = async (action) => {
+        // Check write permission first
+        const actionName = `${action} Request: ${req.description}`;
+        const canProceed = await guardWrite(authContext, actionName, (user) => {
+            return new Promise((resolve) => {
+                setPendingAction({ action, resolve });
+                setShowConfirm(true);
+            });
+        });
+
+        if (!canProceed) return;
+
         if (!confirm(`Are you sure you want to ${action} this request?`)) return;
         setProcessing(true);
         try {
@@ -278,7 +304,7 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
                     </div>
                     <h4 className="font-bold text-slate-800">{req.description}</h4>
                     <p className="text-xs text-slate-500">
-                        Requested by {req.requesterName} • {new Date(req.createdAt?.toDate()).toLocaleDateString()}
+                        Requested by {req.requesterName} • {new Date(req.createdAt?.toDate ? req.createdAt.toDate() : (req.createdAt || new Date())).toLocaleDateString()}
                     </p>
                 </div>
                 <div className="text-right">
@@ -294,19 +320,39 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
                 <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
                     <button
                         onClick={() => handleAction('REJECT')}
-                        disabled={processing}
-                        className="flex-1 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center gap-1"
+                        disabled={processing || isReadOnly}
+                        className="flex-1 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isReadOnly ? 'Blocked: View As mode is read-only' : 'Reject request'}
                     >
-                        <X size={14} /> Reject
+                        {isReadOnly ? <Lock size={14} /> : <X size={14} />} Reject
                     </button>
                     <button
                         onClick={() => handleAction('APPROVE')}
-                        disabled={processing}
-                        className="flex-1 py-2 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-1"
+                        disabled={processing || isReadOnly}
+                        className="flex-1 py-2 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isReadOnly ? 'Blocked: View As mode is read-only' : 'Approve request'}
                     >
-                        <Check size={14} /> Approve
+                        {isReadOnly ? <Lock size={14} /> : <Check size={14} />} Approve
                     </button>
                 </div>
+            )}
+
+            {/* Operate As Confirmation Modal */}
+            {showConfirm && pendingAction && (
+                <OperateAsConfirmation
+                    currentUser={currentUser}
+                    actionName={`${pendingAction.action} Request`}
+                    onConfirm={() => {
+                        pendingAction.resolve(true);
+                        setShowConfirm(false);
+                        setPendingAction(null);
+                    }}
+                    onCancel={() => {
+                        pendingAction.resolve(false);
+                        setShowConfirm(false);
+                        setPendingAction(null);
+                    }}
+                />
             )}
         </div>
     );
@@ -314,6 +360,8 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
 
 // === FORM: Create Request ===
 function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
+    const authContext = useAuth();
+    const { guardWrite } = useWriteGuard(authContext);
     const [type, setType] = useState('EXPENSE'); // EXPENSE or FUNDING
     const [amount, setAmount] = useState('');
     const [desc, setDesc] = useState('');
@@ -324,6 +372,12 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // CHECK WRITE PERMISSION FIRST
+        const actionName = `Create ${type} Request: ${desc || amount}`;
+        const canProceed = await guardWrite(authContext, actionName);
+        if (!canProceed) return;
+
         setSubmitting(true);
         try {
             const locId = currentUser.locationId || (isManager ? currentUser.target_id : null);
@@ -576,7 +630,7 @@ function WalletView({ currentUser, isHQ, functions, onShowSendFunds }) {
                         <div key={txn.id} className="p-4 flex justify-between items-center">
                             <div>
                                 <p className="font-bold text-slate-800">{txn.description}</p>
-                                <p className="text-sm text-slate-500">{new Date(txn.timestamp?.toDate()).toLocaleString()}</p>
+                                <p className="text-sm text-slate-500">{new Date(txn.timestamp?.toDate ? txn.timestamp.toDate() : (txn.timestamp || new Date())).toLocaleString()}</p>
                             </div>
                             <div className={`font-bold text-lg ${txn.walletImpact > 0 ? "text-green-600" : "text-red-600"}`}>
                                 {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(txn.walletImpact)}

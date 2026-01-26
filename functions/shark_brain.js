@@ -27,29 +27,42 @@ const MODEL_NAME = 'gemini-3-pro-preview';
 
 // --- DATA TOOLS ---
 
-// CACHE: Simple in-memory cache for high-frequency low-volatility data
+// CACHE: Simple in-memory cache
 const CACHE = {
     dashboard: { data: null, expiry: 0 },
-    partners: { data: null, expiry: 0 }
+    locations: { data: null, expiry: 0 }
 };
 
 /**
  * gatherContext
  * Intelligently fetching data based on the user's specifics.
- * OPTIMIZED: Parallel Execution & Caching
+ * OPTIMIZED: Parallel Execution & RBAC SCOPE ENFORCEMENT
  */
 async function gatherContext(message, userContext) {
     const db = admin.firestore();
     let contextParts = [];
     const lowerMsg = message.toLowerCase();
     const now = Date.now();
-
-    // Parallel Promises Array
     const tasks = [];
 
-    // 1. GLOBAL DASHBOARD (Cached 60s)
-    // Always useful for "status" or "overview"
-    if (lowerMsg.includes('status') || lowerMsg.includes('how') || lowerMsg.includes('summary') || lowerMsg.includes('dashboard')) {
+    // 1. DETERMINE SCOPE
+    // Hierarchy: CEO > HQ_ADMIN > LOC_MANAGER > UNIT_OP
+    const role = userContext.role_v2 || userContext.role || 'viewer';
+    const isGlobal = (role === 'HQ_ADMIN' || role === 'CEO' || role === 'admin');
+
+    let scopeDesc = '';
+    let targetLocations = [];
+
+    if (isGlobal) {
+        scopeDesc = 'GLOBAL (All Locations)';
+    } else {
+        scopeDesc = `LOCAL (${userContext.locationId || 'Unassigned'})`;
+        if (userContext.locationId) targetLocations.push(userContext.locationId);
+    }
+    contextParts.push(`SCOPE_MODE: ${scopeDesc}`);
+
+    // 2. GLOBAL DASHBOARD (Cached)
+    if (lowerMsg.includes('dashboard') || lowerMsg.includes('summary') || lowerMsg.includes('status')) {
         if (CACHE.dashboard.data && CACHE.dashboard.expiry > now) {
             contextParts.push(CACHE.dashboard.data);
         } else {
@@ -59,7 +72,7 @@ async function gatherContext(message, userContext) {
                     const statsSnap = await db.doc(`dashboard_stats/${dateStr}`).get();
                     if (statsSnap.exists) {
                         const dataStr = `TODAY_STATS(${dateStr}): ${JSON.stringify(statsSnap.data())} `;
-                        CACHE.dashboard = { data: dataStr, expiry: now + 60000 }; // 60s cache
+                        CACHE.dashboard = { data: dataStr, expiry: now + 60000 };
                         contextParts.push(dataStr);
                     }
                 } catch (e) { console.warn("Dashboard fetch failed", e); }
@@ -67,69 +80,115 @@ async function gatherContext(message, userContext) {
         }
     }
 
-    // 2. INTELLIGENT STOCK SEARCH
+    // 3. WALLETS (Financials)
+    if (lowerMsg.includes('wallet') || lowerMsg.includes('balance') || lowerMsg.includes('money') || lowerMsg.includes('cash')) {
+        tasks.push((async () => {
+            try {
+                let walletInfo = [];
+                if (isGlobal) {
+                    // Fetch ALL wallets
+                    const walletsSnap = await db.collection('site_wallets').get();
+                    walletsSnap.forEach(doc => {
+                        const d = doc.data();
+                        walletInfo.push(`Wallet [${doc.id}]: ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(d.balance || 0)}`);
+                    });
+                } else if (userContext.locationId) {
+                    // Fetch Location Wallet AND Unit Wallets in that location
+                    // Note: Schema ambiguity (Unit vs Location wallets). We check specific docs.
+                    const locWallet = await db.doc(`site_wallets/${userContext.locationId}`).get();
+                    if (locWallet.exists) walletInfo.push(`Location Wallet: ${locWallet.data().balance}`);
+
+                    if (userContext.unitId) {
+                        const unitWallet = await db.doc(`site_wallets/${userContext.unitId}`).get();
+                        if (unitWallet.exists) walletInfo.push(`Unit Wallet: ${unitWallet.data().balance}`);
+                    }
+                }
+                contextParts.push(`FINANCIAL_POSITION:\n${walletInfo.join('\n')}`);
+            } catch (e) { contextParts.push(`WALLET_ERROR: ${e.message}`); }
+        })());
+    }
+
+    // 4. INVENTORY / STOCK
     if (lowerMsg.includes('stock') || lowerMsg.includes('have') || lowerMsg.includes('inventory') || lowerMsg.includes('much')) {
         tasks.push((async () => {
             try {
-                let targetLocation = userContext.locationId;
-                if (targetLocation) {
-                    const unitsSnap = await db.collection(`locations/${targetLocation}/units`).get();
-                    let stockInfo = [];
+                // If Global, use Collection Group Query for maximum reach
+                // If Local, iterate units in location.
+                // Detect explicit location mention
+                const knownLocations = ['jakarta', 'kaimana', 'saumlaki', 'hq'];
+                const mentionedLocation = knownLocations.find(loc => lowerMsg.includes(loc));
+                const targetLocId = isGlobal ? (mentionedLocation || null) : userContext.locationId;
 
-                    // Identify keywords to filter DB reads if possible, 
-                    // but Firestore structure requires reading collections. 
-                    // We run parallel reads for units.
-                    const unitTasks = unitsSnap.docs.map(async (unit) => {
-                        const stockSnap = await unit.ref.collection('stock').limit(30).get();
-                        stockSnap.forEach(d => {
-                            const data = d.data();
-                            if (data.quantityKg > 0) stockInfo.push(`[${unit.id}] ${d.id}: ${data.quantityKg}kg`);
-                        });
+                let stocks = [];
+
+                if (isGlobal && !mentionedLocation) {
+                    // Global Search (Generic)
+                    // collectionGroup('stock') is powerful.
+                    const stockSnap = await db.collectionGroup('stock').orderBy('quantityKg', 'desc').limit(100).get();
+                    stockSnap.forEach(doc => {
+                        const d = doc.data();
+                        const pathSegments = doc.ref.path.split('/');
+                        const loc = pathSegments[1] || 'Unknown';
+                        const unit = pathSegments[3] || 'Unknown';
+
+                        if (d.quantityKg > 0) {
+                            stocks.push(`- ${d.label || d.itemId} (${d.type}): ${d.quantityKg}kg @ ${loc}/${unit}`);
+                        }
                     });
-
-                    await Promise.all(unitTasks);
-
-                    if (stockInfo.length > 0) {
-                        // Filter in memory for relevance to save token count
-                        const commonFish = ['tuna', 'skipjack', 'yellowfin', 'snapper', 'octopus', 'shrimp', 'squid'];
-                        const keywords = commonFish.filter(f => lowerMsg.includes(f));
-
-                        const relevantStock = keywords.length > 0
-                            ? stockInfo.filter(s => keywords.some(k => s.toLowerCase().includes(k)))
-                            : stockInfo.slice(0, 15); // limit if no specific request
-
-                        contextParts.push(`STOCK_AT_${targetLocation.toUpperCase()}:\n- ${relevantStock.join('\n- ')}`);
-                    } else {
-                        contextParts.push(`STOCK_AT_${targetLocation.toUpperCase()}: No active stock found.`);
+                } else if (targetLocId) {
+                    // Local Search (or Targeted Global Search)
+                    const unitsSnap = await db.collection(`locations/${targetLocId}/units`).get();
+                    for (const unit of unitsSnap.docs) {
+                        const sSnap = await unit.ref.collection('stock').get();
+                        sSnap.forEach(d => {
+                            const val = d.data();
+                            if (val.quantityKg > 0) stocks.push(`- ${val.label || val.itemId}: ${val.quantityKg}kg @ ${unit.id}`);
+                        });
                     }
                 }
-            } catch (e) { console.warn("Stock fetch failed", e); }
+
+                if (stocks.length > 0) {
+                    // Keyword filter if message is specific
+                    const commonFish = ['tuna', 'skipjack', 'yellowfin', 'snapper', 'kakap', 'madidihang', 'teri', 'anchovy'];
+                    const keywords = commonFish.filter(f => lowerMsg.includes(f));
+
+                    if (keywords.length > 0) {
+                        const filtered = stocks.filter(s => keywords.some(k => s.toLowerCase().includes(k)));
+                        contextParts.push(`INVENTORY_MATCHING_QUERY:\n${filtered.join('\n')}`);
+                    } else {
+                        // Return top 20
+                        contextParts.push(`FULL_INVENTORY_REPORT:\n${stocks.slice(0, 20).join('\n')}`);
+                    }
+                } else {
+                    contextParts.push("INVENTORY: Zero stock found in scope.");
+                }
+
+            } catch (e) { console.error(e); contextParts.push("INVENTORY_ERROR: " + e.message); }
         })());
     }
 
-    // 3. RECENT TRANSACTIONS (High Value Focus)
-    if (lowerMsg.includes('sell') || lowerMsg.includes('audit') || lowerMsg.includes('transaction') || lowerMsg.includes('price')) {
+    // 5. TRANSACTIONS (Recent)
+    if (lowerMsg.includes('sell') || lowerMsg.includes('audit') || lowerMsg.includes('transaction') || lowerMsg.includes('sales')) {
         tasks.push((async () => {
-            try {
-                const txnSnap = await db.collection('transactions')
-                    .orderBy('timestamp', 'desc')
-                    .limit(5)
-                    .get();
+            // Admin sees all, Manager sees location
+            let q = db.collection('transactions').orderBy('timestamp', 'desc').limit(5);
+            if (!isGlobal && userContext.locationId) {
+                q = q.where('locationId', '==', userContext.locationId);
+            }
 
-                const txns = txnSnap.docs.map(d => {
-                    const val = d.data();
-                    return `${val.type} | ${val.amount || val.totalAmount} | By: ${val.userId}`;
-                });
-                contextParts.push(`LAST_5_GLOBAL_TXNS:\n${txns.join('\n')}`);
-            } catch (e) { console.warn("Txn fetch failed", e); }
+            const snap = await q.get();
+            const txns = snap.docs.map(d => {
+                const v = d.data();
+                return `[${v.timestamp?.toDate ? v.timestamp.toDate().toISOString().split('T')[0] : '?'}] ${v.type} | ${v.totalAmount} | ${v.locationId}`;
+            });
+            contextParts.push(`RECENT_TRANSACTIONS:\n${txns.join('\n')}`);
         })());
     }
 
-    // Execute all data fetches in parallel
     await Promise.all(tasks);
 
-    if (contextParts.length === 0) return "No specific internal data found for this query.";
-    return "\n--- LIVE DATA CONTEXT ---\n" + contextParts.join('\n\n') + "\n-------------------------\n";
+    if (contextParts.length === 0) return "No specific live data found. Answer from general knowledge.";
+    return "\n--- LIVE SYSTEM DATA ---\n" + contextParts.join('\n\n') + "\n------------------------\n";
 }
 
 
@@ -149,32 +208,32 @@ async function callGeminiWithRetry(apiCall, retryCount = 0) {
         return await apiCall();
     } catch (error) {
         // Check if it's a rate limit error (429)
-        const isRateLimitError = error.code === 429 || 
-                                 (error.message && error.message.includes('Resource exhausted'));
-        
+        const isRateLimitError = error.code === 429 ||
+            (error.message && error.message.includes('Resource exhausted'));
+
         if (isRateLimitError && retryCount < MAX_RETRIES) {
             // Calculate exponential backoff delay
             const delay = Math.min(
                 INITIAL_DELAY_MS * Math.pow(2, retryCount),
                 MAX_DELAY_MS
             );
-            
+
             // Add jitter to prevent thundering herd
             const jitter = Math.random() * delay * 0.1;
             const totalDelay = delay + jitter;
-            
+
             console.warn(
                 `⚠️ Rate limit hit (attempt ${retryCount + 1}/${MAX_RETRIES}). ` +
                 `Retrying in ${Math.round(totalDelay)}ms...`
             );
-            
+
             // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, totalDelay));
-            
+
             // Recursive retry
             return callGeminiWithRetry(apiCall, retryCount + 1);
         }
-        
+
         // If not a rate limit error or max retries exceeded, throw
         throw error;
     }
@@ -253,7 +312,7 @@ async function processAttachment(attachment) {
             const csv = XLSX.utils.sheet_to_csv(sheet);
             contentText = `[EXCEL CONTENT - ${attachment.name}]\n${csv.substring(0, 5000)}`;
         } else if (attachment.type.includes('image')) {
-            // Images handled natively by Gemini Vision
+            // Images handled natively by Gemini Vision (Standard camelCase for v1 API)
             return { inlineData: { mimeType: attachment.type, data: attachment.data } };
         } else {
             contentText = `[FILE "${attachment.name}" UPLOADED. Analyze based on filename/context.]`;
@@ -276,8 +335,8 @@ async function chatWithShark(messageOrMsgObject, userContext) {
     let messageText = '';
     let attachment = null;
 
-    if (typeof messageOrMsgObject === 'object' && messageOrMsgObject.text) {
-        messageText = messageOrMsgObject.text;
+    if (typeof messageOrMsgObject === 'object') {
+        messageText = messageOrMsgObject.text || ''; // Allow empty text (e.g. image only)
         attachment = messageOrMsgObject.attachment || null;
     } else {
         messageText = String(messageOrMsgObject);
@@ -299,7 +358,7 @@ async function chatWithShark(messageOrMsgObject, userContext) {
     if (attachment) {
         const processed = await processAttachment(attachment);
         if (processed.text) fileContext = processed.text;
-        if (processed.inlineData) filePart = processed.inlineData;
+        if (processed.inlineData) filePart = processed; // Fix: Do not unwrap inlineData
     }
 
     // 4. Construct System Prompt (Phase 7 - Strict Mode)
@@ -354,6 +413,10 @@ Return a JSON object.
             contents[0].parts.push(filePart);
             contents[0].parts[0].text += "\n[Analyze the attached image]";
         }
+
+        // DEBUG: Log payload structure to debug serialization issues
+        console.log("DEBUG: GenAI Payload Parts:", JSON.stringify(contents[0].parts).substring(0, 500) + "...");
+
 
         // Add User Message
         contents[0].parts[0].text += `\nUSER MESSAGE: "${messageText}"`;

@@ -1,11 +1,12 @@
-const functions = require('firebase-functions');
+const { onRequest } = require("firebase-functions/v2/https");
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+// const functions = require('firebase-functions'); // Remove V1
 
 // App is initialized in index.js generally, but we can access it via admin
 const db = getFirestore();
 
-exports.seedProduction = functions.region('asia-southeast2').https.onRequest(async (req, res) => {
+exports.seedProduction = onRequest({ region: "asia-southeast2" }, async (req, res) => {
     // 1. LOCATIONS & UNITS
     const batch = db.batch();
 

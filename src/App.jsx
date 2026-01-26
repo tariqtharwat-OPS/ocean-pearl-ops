@@ -15,6 +15,7 @@ import WalletManager from './pages/WalletManager';
 import DashboardV1 from './pages/Admin/DashboardV1';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 
 function PrivateRoute({ children, allowedRoles = [] }) {
     const { currentUser } = useAuth();
@@ -41,13 +42,16 @@ function PrivateRoute({ children, allowedRoles = [] }) {
 }
 
 function AppRoutes() {
-    const { currentUser } = useAuth();
+    const { currentUser, ceoMode } = useAuth();
 
     // Common sets
     const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP'];
     const ADMIN_ONLY = ['admin', 'hq', 'HQ_ADMIN'];
     const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN'];
     const REPORTS_VIEW = ['admin', 'report_viewer', 'hq', 'manager', 'HQ_ADMIN', 'LOC_MANAGER', 'READ_ONLY'];
+
+    // EXTENDED KEY for strict context safety
+    const contextKey = `${currentUser?.locationId}_${currentUser?.unitId || 'nounit'}_${currentUser?.role_v2}_${ceoMode || 'normal'}`;
 
     return (
         <Routes>
@@ -56,36 +60,37 @@ function AppRoutes() {
             <Route element={<Layout />}>
                 <Route path="/" element={
                     <PrivateRoute>
-                        <Dashboard />
+                        <Dashboard key={contextKey} />
                     </PrivateRoute>
                 } />
                 <Route path="/receiving" element={
                     <PrivateRoute allowedRoles={ALL_OPS}>
-                        <Receiving />
+                        <Receiving key={contextKey} />
                     </PrivateRoute>
                 } />
                 <Route path="/expenses" element={
                     <PrivateRoute allowedRoles={ALL_OPS}>
-                        <Expenses />
+                        <Expenses key={contextKey} />
                     </PrivateRoute>
                 } />
-                <Route path="/cold-storage" element={
+                <Route path="/production" element={
                     <PrivateRoute allowedRoles={ALL_OPS}>
-                        <React.Suspense fallback={<div style={{padding: '2rem', textAlign: 'center'}}>Loading...</div>}>
-                            <ProductionRun />
+                        <React.Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center' }}>Loading...</div>}>
+                            <ProductionRun key={contextKey} />
                         </React.Suspense>
                     </PrivateRoute>
                 } />
+                <Route path="/cold-storage" element={<Navigate to="/production" replace />} />
                 <Route path="/wallet" element={
                     <PrivateRoute allowedRoles={ALL_OPS}>
-                        <WalletManager />
+                        <WalletManager key={contextKey} />
                     </PrivateRoute>
                 } />
 
                 {/* HQ / Sales Only */}
                 <Route path="/sales" element={
                     <PrivateRoute allowedRoles={SALES_ONLY}>
-                        <SalesInvoice />
+                        <SalesInvoice key={contextKey} />
                     </PrivateRoute>
                 } />
 
@@ -98,14 +103,14 @@ function AppRoutes() {
                 {/* Admin Only */}
                 <Route path="/admin" element={
                     <PrivateRoute allowedRoles={ADMIN_ONLY}>
-                        <AdminPanel />
+                        <AdminPanel key={contextKey} />
                     </PrivateRoute>
                 } />
 
                 {/* Reports (Admin & Viewers) */}
                 <Route path="/reports" element={
                     <PrivateRoute allowedRoles={REPORTS_VIEW}>
-                        <ReportsViewer />
+                        <ReportsViewer key={contextKey} />
                     </PrivateRoute>
                 } />
 
@@ -125,6 +130,30 @@ export default function App() {
             <AuthProvider>
                 <TransactionQueueProvider>
                     <ErrorBoundary><AppRoutes /></ErrorBoundary>
+                    <Toaster
+                        position="top-right"
+                        toastOptions={{
+                            duration: 4000,
+                            style: {
+                                background: '#363636',
+                                color: '#fff',
+                            },
+                            success: {
+                                duration: 3000,
+                                iconTheme: {
+                                    primary: '#10b981',
+                                    secondary: '#fff',
+                                },
+                            },
+                            error: {
+                                duration: 5000,
+                                iconTheme: {
+                                    primary: '#ef4444',
+                                    secondary: '#fff',
+                                },
+                            },
+                        }}
+                    />
                 </TransactionQueueProvider>
             </AuthProvider>
         </BrowserRouter>

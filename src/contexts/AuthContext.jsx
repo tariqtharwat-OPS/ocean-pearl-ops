@@ -7,7 +7,10 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
+    const [originalUser, setOriginalUser] = useState(null); // CEO's original identity
+    const [ceoMode, setCeoMode] = useState(null); // null | 'VIEW_AS' | 'OPERATE_AS'
     const [loading, setLoading] = useState(true);
+    const [actionConfirmed, setActionConfirmed] = useState(false); // Session-based confirmation
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -26,32 +29,63 @@ export function AuthProvider({ children }) {
                             userData.unitId = userData.unitId.id || '';
                         }
 
-                        setCurrentUser({ uid: user.uid, email: user.email, ...userData });
+                        const fullUser = { uid: user.uid, email: user.email, ...userData };
+                        setCurrentUser(fullUser);
+                        setOriginalUser(fullUser); // Store original identity
                     } else if (user.email.toLowerCase() === 'info@oceanpearlseafood.com') {
                         // EMERGENCY BOOTSTRAP: Allow root admin without DB entry
                         console.warn('Emergency Admin Login Detected');
-                        setCurrentUser({
+                        const bootstrapUser = {
                             uid: user.uid,
                             email: user.email,
                             role: 'admin',
-                            locationId: 'hq'
-                        });
+                            role_v2: 'GLOBAL_ADMIN',
+                            locationId: 'jakarta',
+                            displayName: 'CEO'
+                        };
+                        setCurrentUser(bootstrapUser);
+                        setOriginalUser(bootstrapUser);
                     } else {
                         console.error('User profile not found');
                         setCurrentUser(null);
+                        setOriginalUser(null);
                     }
                 } catch (err) {
                     console.error('Error fetching user profile', err);
                     setCurrentUser(null);
+                    setOriginalUser(null);
                 }
             } else {
                 setCurrentUser(null);
+                setOriginalUser(null);
+                setCeoMode(null);
             }
             setLoading(false);
         });
 
         return unsubscribe;
     }, []);
+
+    // DIAGNOSTIC LOGGING (TEMPORARY)
+    useEffect(() => {
+        if (!currentUser) return;
+
+        console.group("🔍 AuthContext State Change");
+        console.log("Active Location:", currentUser.locationId);
+        console.log("Active Unit:", currentUser.unitId);
+        console.log("Effective Role:", currentUser.role_v2);
+        console.log("CEO Mode:", ceoMode);
+        console.groupEnd();
+
+        // Expose to window for manual checking if needed
+        window.__OPS_DEBUG = {
+            activeLocationId: currentUser.locationId,
+            activeUnitId: currentUser.unitId,
+            effectiveRole: currentUser.role_v2,
+            mode: ceoMode,
+            currentUser
+        };
+    }, [currentUser, ceoMode]);
 
     const login = async (email, password) => {
         try {
@@ -64,12 +98,91 @@ export function AuthProvider({ children }) {
 
     const logout = async () => {
         await signOut(auth);
+        setCeoMode(null);
+        setActionConfirmed(false);
     };
 
-    // Allow Admin to switch context locally
+    // Check if user is CEO/Global Admin
+    const isCEO = () => {
+        return originalUser?.role === 'admin' || originalUser?.role_v2 === 'GLOBAL_ADMIN' ||
+            originalUser?.role_v2 === 'HQ_ADMIN';
+    };
+
+    // Allow Admin to switch context locally (Legacy - Simple mode)
     const updateViewContext = (locationId, unitId) => {
         if (!currentUser) return;
         setCurrentUser(prev => ({ ...prev, locationId, unitId }));
+    };
+
+    // CEO MODE: View As (Read-Only)
+    const setViewAsMode = (locationId, unitId, roleV2) => {
+        if (!isCEO()) {
+            console.error('Only CEO can use View As mode');
+            return;
+        }
+
+        setCurrentUser({
+            ...originalUser,
+            locationId,
+            unitId,
+            role_v2: roleV2,
+            _isViewAs: true // Flag for read-only enforcement
+        });
+        setCeoMode('VIEW_AS');
+        setActionConfirmed(false);
+
+        // Update document title
+        updateDocumentTitle('VIEW_AS', locationId, roleV2);
+    };
+
+    // CEO MODE: Operate As (Write-Enabled)
+    const setOperateAsMode = (locationId, unitId, roleV2) => {
+        if (!isCEO()) {
+            console.error('Only CEO can use Operate As mode');
+            return;
+        }
+
+        setCurrentUser({
+            ...originalUser,
+            locationId,
+            unitId,
+            role_v2: roleV2,
+            _isOperateAs: true // Flag for tracking
+        });
+        setCeoMode('OPERATE_AS');
+        setActionConfirmed(false); // Reset confirmation for new mode
+
+        // Update document title
+        updateDocumentTitle('OPERATE_AS', locationId, roleV2);
+    };
+
+    // Exit CEO Mode - Return to original identity
+    const exitCEOMode = () => {
+        setCurrentUser(originalUser);
+        setCeoMode(null);
+        setActionConfirmed(false);
+
+        // Reset document title
+        document.title = 'OPS — CEO (Global Admin)';
+    };
+
+    // Update document title based on mode
+    const updateDocumentTitle = (mode, locationId, roleV2) => {
+        const locLabel = locationId ? locationId.toUpperCase() : 'GLOBAL';
+        const roleLabel = roleV2 ? roleV2.replace('_', ' ') : 'ADMIN';
+
+        if (mode === 'VIEW_AS') {
+            document.title = `OPS — VIEW AS: ${locLabel} / ${roleLabel}`;
+        } else if (mode === 'OPERATE_AS') {
+            document.title = `OPS — OPERATE AS: ${locLabel} / ${roleLabel}`;
+        } else {
+            document.title = 'OPS — CEO (Global Admin)';
+        }
+    };
+
+    // Confirm action in Operate As mode (session-based)
+    const confirmAction = () => {
+        setActionConfirmed(true);
     };
 
     if (loading) {
@@ -81,7 +194,21 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ currentUser, login, logout, loading, updateViewContext }}>
+        <AuthContext.Provider value={{
+            currentUser,
+            originalUser,
+            ceoMode,
+            actionConfirmed,
+            login,
+            logout,
+            loading,
+            updateViewContext,
+            isCEO,
+            setViewAsMode,
+            setOperateAsMode,
+            exitCEOMode,
+            confirmAction
+        }}>
             {children}
         </AuthContext.Provider>
     );

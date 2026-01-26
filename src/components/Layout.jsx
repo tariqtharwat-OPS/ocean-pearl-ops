@@ -5,12 +5,13 @@ import { Menu, LogOut, Truck, DollarSign, Snowflake, FileText, Settings, BarChar
 import { LOCATIONS } from '../lib/constants';
 import { useTransactionQueue } from '../contexts/TransactionQueueContext';
 import { useTranslation } from 'react-i18next';
+import CEOControlPanel from './CEOControlPanel';
 
 // Lazy load SharkChat
 const SharkChat = React.lazy(() => import('./SharkChat'));
 
 export default function Layout() {
-    const { currentUser, logout, updateViewContext } = useAuth();
+    const { currentUser, logout, updateViewContext, ceoMode } = useAuth();
     const location = useLocation();
     const { queue, isOnline } = useTransactionQueue();
     const { t, i18n } = useTranslation();
@@ -54,7 +55,7 @@ export default function Layout() {
             navItems.push({ to: '/receiving', icon: Truck, label: t('receiving') });
         }
         if (capabilities.includes('storage')) {
-            navItems.push({ to: '/cold-storage', icon: Snowflake, label: t('storage') });
+            navItems.push({ to: '/production', icon: Snowflake, label: t('storage') });
         }
         // Base Feature: Requests/Wallet
         navItems.push({ to: '/wallet', icon: FileText, label: t('requests') || 'Requests' });
@@ -69,23 +70,29 @@ export default function Layout() {
         // But if the Location itself has no Receiving units, maybe hide?
         // For now, let's keep Manager seeing all OPS, as they manage the site.
         navItems.push({ to: '/receiving', icon: Truck, label: t('receiving') });
-        navItems.push({ to: '/cold-storage', icon: Snowflake, label: t('storage') });
+        navItems.push({ to: '/production', icon: Snowflake, label: t('storage') });
         navItems.push({ to: '/wallet', icon: DollarSign, label: t('wallet') });
-        navItems.push({ to: '/reports', icon: BarChart3, label: 'Reports' });
+        navItems.push({ to: '/reports', icon: BarChart3, label: t('reports') });
     }
 
     // 3. HQ ADMIN SUITE (and Legacy Root)
     else if (isHQ || isLegacyAdmin) {
-        navItems.push({ to: '/dashboard-v1', icon: Globe, label: 'Command' });
-        navItems.push({ to: '/wallet', icon: DollarSign, label: 'Treasury' });
-        navItems.push({ to: '/reports', icon: BarChart3, label: 'Reports' });
-        navItems.push({ to: '/admin', icon: Settings, label: 'Admin' });
+        navItems.push({ to: '/dashboard-v1', icon: Globe, label: t('command') });
+        navItems.push({ to: '/wallet', icon: DollarSign, label: t('treasury') });
+        navItems.push({ to: '/reports', icon: BarChart3, label: t('reports') });
+        navItems.push({ to: '/admin', icon: Settings, label: t('admin') });
     }
+
+    // Calculate top padding for main content (adjust for CEO banner)
+    const mainTopClass = ceoMode ? 'pt-12' : '';
 
     return (
         <div className="min-h-screen bg-neutral-50 flex flex-col">
+            {/* CEO Control Panel & Banner */}
+            <CEOControlPanel />
+
             {/* Top Header */}
-            <header className="bg-primary text-white p-3 shadow-md sticky top-0 z-50 border-b-4 border-secondary">
+            <header className={`bg-primary text-white p-3 shadow-md sticky z-50 border-b-4 border-secondary ${ceoMode ? 'top-12' : 'top-0'}`}>
                 <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
 
                     {/* LEFT: Context Identity */}
@@ -103,11 +110,11 @@ export default function Layout() {
                                 </span>
                             </div>
 
-                            {/* Context Switcher - Only for HQ/Admins to peek at other locations */}
-                            {isHQ || isLegacyAdmin ? (
+                            {/* Context Switcher - Only for HQ/Admins to peek at other locations (LEGACY MODE - hidden when CEO mode active) */}
+                            {!ceoMode && (isHQ || isLegacyAdmin) ? (
                                 <div className="flex flex-col gap-1 mt-1">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-white/60 w-10">LOC:</span>
+                                        <span className="text-[10px] text-white/60 w-10">{t('loc')}:</span>
                                         <select
                                             className="bg-black/20 text-xs border border-white/10 rounded px-1 py-0.5 focus:outline-none focus:border-secondary w-32"
                                             value={currentUser?.locationId || ''}
@@ -127,7 +134,7 @@ export default function Layout() {
                                     {/* Optional Unit Switcher for Admin */}
                                     {currentUser?.locationId && LOCATIONS[currentUser.locationId] && (
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-white/60 w-10">UNIT:</span>
+                                            <span className="text-[10px] text-white/60 w-10">{t('unit')}:</span>
                                             <select
                                                 className="bg-black/20 text-xs border border-white/10 rounded px-1 py-0.5 focus:outline-none focus:border-secondary w-32"
                                                 value={currentUser?.unitId || ''}
@@ -140,14 +147,14 @@ export default function Layout() {
                                         </div>
                                     )}
                                 </div>
-                            ) : (
+                            ) : !ceoMode && (
                                 <div className="flex flex-col mt-1">
                                     <div className="flex items-center gap-1 text-xs text-secondary-200">
-                                        <span className="text-white/40 text-[10px]">LOC:</span>
+                                        <span className="text-white/40 text-[10px]">{t('loc')}:</span>
                                         <span className="font-bold">{locationLabel}</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-xs text-white">
-                                        <span className="text-white/40 text-[10px]">UNIT:</span>
+                                        <span className="text-white/40 text-[10px]">{t('unit')}:</span>
                                         <span className="font-mono">{unitLabel}</span>
                                     </div>
                                 </div>
@@ -179,7 +186,7 @@ export default function Layout() {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 p-4 pb-24 max-w-5xl mx-auto w-full">
+            <main className={`flex-1 p-4 pb-24 max-w-5xl mx-auto w-full ${mainTopClass}`}>
                 <Outlet />
             </main>
 
@@ -193,7 +200,7 @@ export default function Layout() {
                         onClick={() => setActiveRoute('/')}
                     >
                         <Menu size={20} />
-                        <span className="text-[10px] font-medium">Home</span>
+                        <span className="text-[10px] font-medium">{t('home')}</span>
                     </NavLink>
 
                     {navItems.map((item) => {

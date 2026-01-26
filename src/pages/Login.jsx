@@ -60,7 +60,7 @@ export default function Login() {
                     <div className="w-full max-w-md mx-auto">
                         <div className="mb-8">
                             <h1 className="text-3xl font-extrabold text-slate-800 mb-2">{t('auth_btn', 'Sign In')}</h1>
-                            <p className="text-slate-500">Access your operations dashboard</p>
+                            <p className="text-slate-500">{t('login_subtitle')}</p>
                         </div>
 
                         {error && (
@@ -111,8 +111,8 @@ export default function Login() {
                         </form>
 
                         <div className="mt-8 flex items-center justify-between text-sm">
-                            <button className="text-slate-400 hover:text-slate-600 font-medium transition-colors">Forgot password?</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-bold transition-colors">Contact Admin</button>
+                            <button className="text-slate-400 hover:text-slate-600 font-medium transition-colors">{t('forgot_password')}</button>
+                            <button className="text-blue-600 hover:text-blue-700 font-bold transition-colors">{t('contact_admin')}</button>
                         </div>
                     </div>
                 </div>

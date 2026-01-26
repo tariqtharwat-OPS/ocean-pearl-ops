@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeString } from '../lib/safety';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
@@ -21,16 +22,16 @@ const STATUS_MESSAGES = [
 // --- SUB-COMPONENT: DRAFT CARD ---
 function TransactionDraft({ draft, onComplete }) {
     const { currentUser } = useAuth();
-    const [payload, setPayload] = useState(draft.payload);
+    const [payload, setPayload] = useState(draft.payload || {});
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
 
-    const formatLabel = (key) => key.replace(/([A-Z])/g, ' $1').toUpperCase();
+    const formatLabel = (key) => safeString(key).replace(/([A-Z])/g, ' $1').toUpperCase();
 
     const handleExecute = async () => {
         setLoading(true);
-        
-        console.log("DEBUG: Executing with functions instance:", functions);
+
+        // console.log("DEBUG: Executing with functions instance:", functions); // FIX: Removed ReferenceError
 
         // --- CONTEXT INJECTION FIX ---
         // Ensure payload has minimal context if missing
@@ -39,28 +40,40 @@ function TransactionDraft({ draft, onComplete }) {
             locationId: payload.locationId || currentUser?.locationId || 'HQ',
             unitId: payload.unitId || currentUser?.unitId || 'main',
             // Ensure numbers are numbers
-            amount: payload.amount ? parseFloat(payload.amount) : 0
+            amount: payload.amount ? parseFloat(payload.amount) : 0,
+            quantityKg: payload.quantityKg ? parseFloat(payload.quantityKg) : 0,
+            pricePerKg: payload.pricePerKg ? parseFloat(payload.pricePerKg) :
+                (payload.amount && payload.quantityKg ? parseFloat(payload.amount) / parseFloat(payload.quantityKg) : 0)
         };
         console.log("DEBUG: Final Payload:", enhancedPayload);
 
         try {
             let funcName = '';
-            // Map Draft Type to Cloud Function
-            switch (draft.type) {
+            // Map Draft Type to Cloud Function or fallback
+            const draftType = draft.type || 'PURCHASE_RECEIVE'; // Fallback if AI forgets type
+
+            switch (draftType) {
                 case 'EXPENSE_REQUEST':
                 case 'FUNDING_REQUEST':
                     funcName = 'createFinancialRequest';
                     // Adjust payload type
-                    enhancedPayload.type = draft.type === 'EXPENSE_REQUEST' ? 'EXPENSE' : 'FUNDING';
+                    enhancedPayload.type = draftType === 'EXPENSE_REQUEST' ? 'EXPENSE' : 'FUNDING';
                     break;
                 case 'EXPENSE':
                 case 'PURCHASE_RECEIVE':
+                case 'RECEIVING': // Handle AI's alias
+                    funcName = 'postTransaction';
+                    enhancedPayload.type = (draftType === 'RECEIVING') ? 'PURCHASE_RECEIVE' : draftType;
+                    break;
                 case 'CASH_TRANSFER':
                     funcName = 'postTransaction';
-                    enhancedPayload.type = draft.type;
+                    enhancedPayload.type = draftType;
                     break;
                 default:
-                    throw new Error("Unknown Draft Type: " + draft.type);
+                    // If truly unknown, try postTransaction as last resort
+                    console.warn("Unknown Draft Type:", draftType, "Full Draft:", draft);
+                    funcName = 'postTransaction';
+                    enhancedPayload.type = 'PURCHASE_RECEIVE'; // Safe default
             }
 
             const region = getFunctionRegion(funcName);
@@ -95,7 +108,7 @@ function TransactionDraft({ draft, onComplete }) {
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-100 to-white p-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <FileText size={12} /> DRAFT: {draft.type.replace('_', ' ')}
+                    <FileText size={12} /> DRAFT: {safeString(draft.type || 'UNKNOWN').replace('_', ' ')}
                 </span>
                 <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">DRAFT V6: FIXED</span>
             </div>
@@ -406,7 +419,7 @@ export default function SharkChat() {
                                             {/* Render Text with Markdown */}
                                             {msg.text && (
                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                    {msg.text}
+                                                    {safeString(msg.text)}
                                                 </ReactMarkdown>
                                             )}
                                             {/* Render Attachment Indicator */}

@@ -1,5 +1,7 @@
-const functions = require('firebase-functions');
 const { setGlobalOptions } = require("firebase-functions/v2");
+const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+// const functions = require('firebase-functions'); // Deprecated V1
 
 // Set the region for all functions in this file
 setGlobalOptions({ region: "asia-southeast1" });
@@ -17,14 +19,18 @@ const seedMaster = require('./seed_master');
 // const sharkBrain = require('./shark_brain'); // Lazy Loaded now
 
 // Export all functions
-exports.performGreatWipe = seedLogic.performGreatWipe;
-exports.seedProcessingRules = seedMaster.seedProcessingRules;
-exports.seedProduction = require('./seed_production').seedProduction;
+// SECURITY: Disabled for Production
+// exports.performGreatWipe = seedLogic.performGreatWipe;
+// exports.seedProcessingRules = seedMaster.seedProcessingRules;
+// exports.seedProduction = require('./seed_production').seedProduction;
+
 const migrationV2 = require('./migration_v2');
-exports.backupFirestore = migrationV2.backupFirestore;
-exports.migrateSchemaV2 = migrationV2.migrateSchemaV2;
-exports.migrateUsersV2 = migrationV2.migrateUsersV2;
-exports.revertUsersV1 = migrationV2.revertUsersV1;
+exports.seedRealisticData = require('./seed_realistic').seedRealisticData;
+// SECURITY: Disabled for Production
+// exports.backupFirestore = migrationV2.backupFirestore;
+// exports.migrateSchemaV2 = migrationV2.migrateSchemaV2;
+// exports.migrateUsersV2 = migrationV2.migrateUsersV2;
+// exports.revertUsersV1 = migrationV2.revertUsersV1;
 
 const financialV2 = require('./financial_v2');
 exports.createFinancialRequest = financialV2.createFinancialRequest;
@@ -38,10 +44,12 @@ exports.rejectFinancialRequest = financialV2.rejectFinancialRequest;
  * Single entry point for all operational transactions.
  * Enforces server-side validation, calculations, and atomic stock updates.
  */
-exports.postTransaction = functions.https.onCall(async (data, context) => {
+exports.postTransaction = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth }; // Shim key for V1 logic compatibility
     // 1. Authentication Check
     if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'User must be logged in.');
+        throw new HttpsError('unauthenticated', 'User must be logged in.');
     }
 
     // Use LET to allow overriding by RBAC
@@ -60,10 +68,11 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
     // === 1.5 RBAC ENFORCEMENT & SCOPE OVERRIDE (Step 3) ===
     const userSnap = await db.collection('users').doc(context.auth.uid).get();
     const userData = userSnap.data() || {};
-    const { role_v2, target_id } = userData;
+    const role_v2 = userData.role_v2;
+    const target_id = userData.target_id || userData.locationId || userData.loc;
 
     if (!role_v2) {
-        throw new functions.https.HttpsError('permission-denied', 'Account Security: You have no V2 Role assigned. Contact HQ.');
+        throw new HttpsError('permission-denied', 'Account Security: You have no V2 Role assigned. Contact HQ.');
     }
 
     if (role_v2 === 'HQ_ADMIN') {
@@ -78,15 +87,15 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
     }
     else if (role_v2 === 'UNIT_OP') {
         // STRICT BLOCK for postTransaction
-        throw new functions.https.HttpsError('permission-denied', `Security Alert: Unit Operators cannot execute transactions directly.`);
+        throw new HttpsError('permission-denied', `Security Alert: Unit Operators cannot execute transactions directly.`);
     }
     else {
-        throw new functions.https.HttpsError('permission-denied', 'Unknown Role Type.');
+        throw new HttpsError('permission-denied', 'Unknown Role Type.');
     }
 
     // Basic validation (Check again after override)
     if (!locationId || !unitId || !type) {
-        throw new functions.https.HttpsError('invalid-argument', 'Missing core transaction fields.');
+        throw new HttpsError('invalid-argument', 'Missing core transaction fields.');
     }
 
     const transactionRef = db.collection('transactions').doc();
@@ -105,7 +114,7 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
             case 'PURCHASE_RECEIVE':
                 // Validation
                 if (!pricePerKg || pricePerKg <= 0) {
-                    throw new functions.https.HttpsError('invalid-argument', 'Price per Kg is mandatory.');
+                    throw new HttpsError('invalid-argument', 'Price per Kg is mandatory.');
                 }
 
                 // Calculation
@@ -135,10 +144,10 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
                 // No stock impact
                 calculatedTotal = amount || 0;
                 if (calculatedTotal <= 0) {
-                    throw new functions.https.HttpsError('invalid-argument', 'Expense amount must be positive.');
+                    throw new HttpsError('invalid-argument', 'Expense amount must be positive.');
                 }
                 if (!description) {
-                    throw new functions.https.HttpsError('invalid-argument', 'Description is mandatory for Expenses.');
+                    throw new HttpsError('invalid-argument', 'Description is mandatory for Expenses.');
                 }
 
                 // Cash Logic
@@ -150,7 +159,7 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
             case 'SALE_INVOICE':
                 // Validation
                 if (!gradeId) {
-                    throw new functions.https.HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
+                    throw new HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
                 }
 
                 // Calculation
@@ -167,7 +176,7 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
 
             case 'LOCAL_SALE':
                 // Same stock logic as SALE_INVOICE but adds to Wallet
-                if (!gradeId) throw new functions.https.HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
+                if (!gradeId) throw new HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
 
                 calculatedTotal = (quantityKg || 0) * (pricePerKg || 0);
                 stockImpactCold = -quantityKg;
@@ -175,8 +184,8 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
                 break;
 
             case 'CASH_TRANSFER':
-                if (!amount || amount <= 0) throw new functions.https.HttpsError('invalid-argument', 'Amount required.');
-                if (!description) throw new functions.https.HttpsError('invalid-argument', 'Description required.');
+                if (!amount || amount <= 0) throw new HttpsError('invalid-argument', 'Amount required.');
+                if (!description) throw new HttpsError('invalid-argument', 'Description required.');
 
                 calculatedTotal = amount;
                 if (transferDirection === 'IN') { // HQ -> Unit
@@ -184,19 +193,18 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
                 } else if (transferDirection === 'OUT') { // Unit -> HQ
                     walletImpact = -amount;
                 } else {
-                    throw new functions.https.HttpsError('invalid-argument', 'Invalid Transfer Direction.');
+                    throw new HttpsError('invalid-argument', 'Invalid Transfer Direction.');
                 }
                 break;
 
             case 'BANK_DEPOSIT':
                 // Capital Injection logic
-                if (!amount || amount <= 0) throw new functions.https.HttpsError('invalid-argument', 'Amount required.');
+                if (!amount || amount <= 0) throw new HttpsError('invalid-argument', 'Amount required.');
                 calculatedTotal = amount;
                 walletImpact = amount; // Will be handled specifically by HQ logic
                 break;
 
-            default:
-                throw new functions.https.HttpsError('invalid-argument', 'Unknown Transaction Type');
+                throw new HttpsError('invalid-argument', 'Unknown Transaction Type');
         }
 
         // 2. Commit Transaction Record
@@ -238,7 +246,7 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
                     sourceWalletId = locationId;
                     targetWalletId = HQ_WALLET_ID;
                 }
-                if (sourceWalletId === targetWalletId) throw new functions.https.HttpsError('invalid-argument', 'Self-transfer blocked.');
+                if (sourceWalletId === targetWalletId) throw new HttpsError('invalid-argument', 'Self-transfer blocked.');
             } else if (type === 'BANK_DEPOSIT') {
                 targetWalletId = HQ_WALLET_ID;
             } else if (walletImpact !== 0) {
@@ -270,24 +278,24 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
 
             // Wallet Validations
             if (sourceWalletId) {
-                if (!sourceWalletDoc.exists) throw new functions.https.HttpsError('failed-precondition', `Source Wallet ${sourceWalletId} not found.`);
+                if (!sourceWalletDoc.exists) throw new HttpsError('failed-precondition', `Source Wallet ${sourceWalletId} not found.`);
                 const current = sourceWalletDoc.data().balance || 0;
                 // Allow negative for HQ? Spec says "No negative balances" for Locations. Maybe HQ can go negative (Debt)?
                 // Let's enforce strictly except for HQ if we want to allow overdraft.
                 // Spec says: "Prevent sourceBalance < amount (no negative balances)" - Enforce for ALL.
                 if (current < amount) {
-                    throw new functions.https.HttpsError('failed-precondition', `Insufficient funds in ${sourceWalletId}. Available: ${current}`);
+                    throw new HttpsError('failed-precondition', `Insufficient funds in ${sourceWalletId}. Available: ${current}`);
                 }
             }
 
             // Stock Validations
             if (stockImpactCold < 0) {
                 const currentStock = coldStockDoc.exists ? (coldStockDoc.data().quantityKg || 0) : 0;
-                if (currentStock + stockImpactCold < 0) throw new functions.https.HttpsError('failed-precondition', `Insufficient Cold Stock.`);
+                if (currentStock + stockImpactCold < 0) throw new HttpsError('failed-precondition', `Insufficient Cold Stock.`);
             }
             if (stockImpactRaw < 0) {
                 const currentRaw = rawStockDoc.exists ? (rawStockDoc.data().quantityKg || 0) : 0;
-                if (currentRaw + stockImpactRaw < 0) throw new functions.https.HttpsError('failed-precondition', `Insufficient RAW Stock.`);
+                if (currentRaw + stockImpactRaw < 0) throw new HttpsError('failed-precondition', `Insufficient RAW Stock.`);
             }
 
 
@@ -379,7 +387,7 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
 
     } catch (error) {
         console.error("Transaction Error", error);
-        throw new functions.https.HttpsError('internal', error.message);
+        throw new HttpsError('internal', error.message);
     }
 });
 
@@ -391,12 +399,14 @@ exports.postTransaction = functions.https.onCall(async (data, context) => {
  * 2. Replays all 'transactions' to rebuild strict Ledger state.
  * 3. Corrects historical 'Single-Sided' transfers to be 'Double-Sided'.
  */
-exports.repairSystemWallets = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.repairSystemWallets = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
     // Safety: Only super-admin
     const user = await admin.auth().getUser(context.auth.uid);
-    if (user.email !== 'tariq@oceanpearlseafood.com') throw new functions.https.HttpsError('permission-denied', 'Super Admin Only');
+    if (user.email !== 'tariq@oceanpearlseafood.com') throw new HttpsError('permission-denied', 'Super Admin Only');
 
     const batch = db.batch();
     const log = [];
@@ -465,9 +475,11 @@ exports.repairSystemWallets = functions.https.onCall(async (data, context) => {
  * Allows 'super_admin' or 'admin' to create new users without signing out.
  * Molds the Firestore 'users' profile immediately.
  */
-exports.createSystemUser = functions.https.onCall(async (data, context) => {
+exports.createSystemUser = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
     // 1. Auth Check: Must be Admin
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
     const callerUid = context.auth.uid;
     const callerDoc = await db.collection('users').doc(callerUid).get();
@@ -478,7 +490,7 @@ exports.createSystemUser = functions.https.onCall(async (data, context) => {
         context.auth.token.email === 'info@oceanpearlseafood.com';
 
     if (!isSuperAdmin && callerRole !== 'admin') {
-        throw new functions.https.HttpsError('permission-denied', 'Only Admins can create users.');
+        throw new HttpsError('permission-denied', 'Only Admins can create users.');
     }
 
     const { email, password, displayName, role, locationId, unitId, phone } = data;
@@ -507,7 +519,7 @@ exports.createSystemUser = functions.https.onCall(async (data, context) => {
 
     } catch (err) {
         console.error("Create User Error", err);
-        throw new functions.https.HttpsError('internal', err.message);
+        throw new HttpsError('internal', err.message);
     }
 });
 
@@ -520,8 +532,10 @@ exports.createSystemUser = functions.https.onCall(async (data, context) => {
  * - Toggle Disable/Enable (Auth & Firestore)
  * - Reset Password (to a temporary one)
  */
-exports.manageUser = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.manageUser = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
     // Auth Check
     const callerUid = context.auth.uid;
@@ -532,7 +546,7 @@ exports.manageUser = functions.https.onCall(async (data, context) => {
     if (!isSuperAdmin) {
         const callerDoc = await db.collection('users').doc(callerUid).get();
         if (callerDoc.data()?.role !== 'admin') {
-            throw new functions.https.HttpsError('permission-denied', 'Only Admins can manage users.');
+            throw new HttpsError('permission-denied', 'Only Admins can manage users.');
         }
     }
 
@@ -577,23 +591,23 @@ exports.manageUser = functions.https.onCall(async (data, context) => {
             // Prevent deletion of super admin accounts
             const targetUser = await admin.auth().getUser(targetUid);
             if (targetUser.email === 'tariq@oceanpearlseafood.com' || targetUser.email === 'info@oceanpearlseafood.com') {
-                throw new functions.https.HttpsError('permission-denied', 'Cannot delete super admin accounts.');
+                throw new HttpsError('permission-denied', 'Cannot delete super admin accounts.');
             }
-            
+
             // 1. Delete from Firebase Authentication
             await admin.auth().deleteUser(targetUid);
-            
+
             // 2. Delete from Firestore users collection
             await db.collection('users').doc(targetUid).delete();
-            
+
             return { success: true, message: 'User permanently deleted.' };
         }
 
-        throw new functions.https.HttpsError('invalid-argument', 'Unknown action');
+        throw new HttpsError('invalid-argument', 'Unknown action');
 
     } catch (err) {
         console.error("Manage User Error", err);
-        throw new functions.https.HttpsError('internal', err.message);
+        throw new HttpsError('internal', err.message);
     }
 });
 
@@ -644,13 +658,15 @@ async function sendWhatsAppAlert(message, targetPhone) {
  * 
  * One-time utility to inject the International Standard Commercial Taxonomy.
  */
-exports.seedTaxonomy = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.seedTaxonomy = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
     // Auth Check: Super Admin Only
     const isSuperAdmin = context.auth.token.email === 'tariq@oceanpearlseafood.com' ||
         context.auth.token.email === 'info@oceanpearlseafood.com';
-    if (!isSuperAdmin) throw new functions.https.HttpsError('permission-denied', 'Super Admin only.');
+    if (!isSuperAdmin) throw new HttpsError('permission-denied', 'Super Admin only.');
 
     const TAXONOMY = [
         { id: 'tuna_skipjack', en: 'Skipjack Tuna', local: 'Cakalang', scientific: 'Katsuwonus pelamis', category: 'FISH' },
@@ -696,7 +712,9 @@ exports.seedTaxonomy = functions.https.onCall(async (data, context) => {
 /**
  * auditTransaction (Shark AI - Operations Intelligence)
  */
-exports.auditTransaction = functions.firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
+exports.auditTransaction = onDocumentCreated('transactions/{txnId}', async (event) => {
+    const snap = event.data;
+    const context = { params: event.params }; // Shim for context.params
     const txn = snap.data();
     const txnId = context.params.txnId;
 
@@ -770,7 +788,9 @@ exports.auditTransaction = functions.firestore.document('transactions/{txnId}').
  * - This allows the Admin Dashboard to load "Total Cash" and "Daily Volume" instantly
  *   without querying 10k+ records.
  */
-exports.transactionAggregator = functions.firestore.document('transactions/{txnId}').onCreate(async (snap, context) => {
+exports.transactionAggregator = onDocumentCreated('transactions/{txnId}', async (event) => {
+    const snap = event.data;
+    const context = { params: event.params };
     const txn = snap.data();
     const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     const statsRef = db.doc(`dashboard_stats/${dateStr}`);
@@ -815,7 +835,9 @@ exports.transactionAggregator = functions.firestore.document('transactions/{txnI
  * Fetches context (Inventory, recent movements) to answer questions proactively.
  * "How much Tuna do we have?" -> "We have 450kg of Yellowfin Tuna in Block A."
  */
-exports.sharkChat = functions.firestore.document('messages/{msgId}').onCreate(async (snap, context) => {
+exports.sharkChat = onDocumentCreated({ document: 'messages/{msgId}', timeoutSeconds: 300 }, async (event) => {
+    const snap = event.data;
+    const context = { params: event.params };
     const msg = snap.data();
 
     // 1. Ignore own messages (Loop prevention)
@@ -833,6 +855,7 @@ exports.sharkChat = functions.firestore.document('messages/{msgId}').onCreate(as
         const userContext = {
             name: userData.displayName || 'Staff',
             role: userData.role || 'operator',
+            role_v2: userData.role_v2, // Explicit V2 Support
             locationId: userData.locationId,
             unitId: userData.unitId
         };
@@ -892,7 +915,7 @@ exports.sharkChat = functions.firestore.document('messages/{msgId}').onCreate(as
  * Receives POST requests from Twilio when a user messaging the bot.
  * Connects directly to Shark Brain and replies via TwiML.
  */
-exports.twilioWebhook = functions.https.onRequest(async (req, res) => {
+exports.twilioWebhook = onRequest(async (req, res) => {
     const MessagingResponse = require('twilio').twiml.MessagingResponse;
     const twiml = new MessagingResponse();
 
@@ -953,7 +976,7 @@ exports.twilioWebhook = functions.https.onRequest(async (req, res) => {
 /**
  * injectDay1 (Emergency Bypass)
  */
-exports.injectDay1 = functions.https.onRequest(async (req, res) => {
+exports.injectDay1 = onRequest(async (req, res) => {
     // Basic Security
     if (req.query.key !== 'antigravity_secret') return res.status(403).send('Forbidden');
 

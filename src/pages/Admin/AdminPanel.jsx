@@ -3,8 +3,12 @@ import CsvImporter from './CsvImporter';
 import { useAuth } from '../../contexts/AuthContext';
 import { db, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, getDocs, doc, updateDoc, setDoc, onSnapshot, query, orderBy, addDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
 import { LOCATIONS, UNITS } from '../../lib/constants';
+import { safeCompare } from '../../lib/safety';
+import { useWriteGuard } from '../../lib/writeGuard';
+import { Lock } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 // Simple Admin Component for managing Users, Items, Partners, Locations
 export default function AdminPanel() {
@@ -90,7 +94,7 @@ function UsersManager({ showToast }) {
         const q = query(
             collection(db, 'admin_notifications'),
             orderBy('timestamp', 'desc'),
-            // limit(5) // Optional, but let's keep it clean
+            limit(20) // Limit to recent 20 to prevent crash
         );
         const unsubscribe = onSnapshot(q, (snap) => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -267,7 +271,7 @@ function UsersManager({ showToast }) {
                                             {u.locationId ? (
                                                 <div className="flex flex-col">
                                                     <span className="bg-white text-blue-700 px-2 py-0.5 rounded text-xs border border-blue-100 font-mono shadow-sm w-fit mb-1">
-                                                        {LOCATIONS[u.locationId.toUpperCase()]?.label || LOCATIONS[u.locationId]?.label || u.locationId}
+                                                        {(typeof u.locationId === 'string' && LOCATIONS[u.locationId.toUpperCase()]?.label) || LOCATIONS[u.locationId]?.label || u.locationId}
                                                     </span>
                                                     {u.unitId && (
                                                         <span className="text-[10px] text-gray-500 pl-1 border-l-2 border-gray-300">
@@ -316,7 +320,10 @@ function UsersManager({ showToast }) {
 }
 
 // Helper Components
-function BadgeRole({ role }) {
+const BadgeRole = ({ role }) => {
+    // Safety check
+    const safeRole = role || 'viewer';
+
     const styles = {
         admin: 'bg-yellow-100 text-yellow-800 border-yellow-200',
         location_admin: 'bg-purple-100 text-purple-800 border-purple-200',
@@ -332,11 +339,11 @@ function BadgeRole({ role }) {
         viewer: 'VIEWER'
     };
     return (
-        <span className={`px-2 py-1 rounded text-[10px] font-bold border ${styles[role] || styles.viewer}`}>
-            {labels[role] || role.toUpperCase()}
+        <span className={`px-2 py-1 rounded text-[10px] font-bold border ${styles[safeRole] || styles.viewer}`}>
+            {labels[safeRole] || (typeof safeRole === 'string' ? safeRole.toUpperCase() : 'UNKNOWN')}
         </span>
     );
-}
+};
 
 function UserEditModal({ user, onClose, onSuccess }) {
     // const { httpsCallable } = require('firebase/functions'); // Safe import -- REMOVED
@@ -402,13 +409,13 @@ function UserEditModal({ user, onClose, onSuccess }) {
 
     const handleDeleteUser = async () => {
         if (!confirm(`⚠️ WARNING: This will PERMANENTLY DELETE ${user.email} from both Authentication and Firestore.\n\nThis action CANNOT be undone!\n\nType the user's email to confirm deletion.`)) return;
-        
+
         const confirmation = prompt(`Type "${user.email}" to confirm permanent deletion:`);
         if (confirmation !== user.email) {
             alert('Email does not match. Deletion cancelled.');
             return;
         }
-        
+
         setUpdating(true);
         try {
             const manageUser = httpsCallable(functions, 'manageUser');
@@ -708,7 +715,7 @@ function RawMaterialsPanel({ showToast }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {items.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-gray-400">No raw materials found.</td></tr>}
-                        {items.sort((a, b) => a.name.localeCompare(b.name)).map(i => (
+                        {items.sort((a, b) => safeCompare(a.name, b.name)).map(i => (
                             <tr key={i.id} className={`hover:bg-slate-50 transition-colors ${!i.active ? 'opacity-50 bg-gray-50' : ''}`}>
                                 <td className="p-4 font-mono text-xs font-bold text-slate-400">{i.id}</td>
                                 <td className="p-4">
@@ -991,7 +998,7 @@ function FinishedProductsPanel({ showToast }) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {items.sort((a, b) => a.name.localeCompare(b.name)).map(i => (
+                        {items.sort((a, b) => safeCompare(a.name, b.name)).map(i => (
                             <tr key={i.id} className={`hover:bg-slate-50 transition-colors ${!i.active ? 'opacity-50 bg-gray-50' : ''}`}>
                                 <td className="p-4 font-mono text-xs font-bold text-slate-400">{i.id}</td>
                                 <td className="p-4">
@@ -1230,7 +1237,7 @@ function PartnersManager({ showToast }) {
                     {loading ? <div className="p-8 text-center text-gray-400">Loading...</div> : (
                         <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
                             {partners.length === 0 && <div className="p-8 text-center text-gray-400">No partners found.</div>}
-                            {partners.sort((a, b) => b.id.localeCompare(a.id)).map(p => (
+                            {partners.sort((a, b) => safeCompare(b.id, a.id)).map(p => (
                                 <div key={p.id} className="p-4 hover:bg-slate-50 transition-colors flex justify-between items-center group">
                                     <div>
                                         <div className="font-bold text-slate-800">{p.name}</div>

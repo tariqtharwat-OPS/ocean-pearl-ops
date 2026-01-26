@@ -1,15 +1,16 @@
-const functions = require("firebase-functions");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 
 // Set the region for all functions in this file
-setGlobalOptions({ region: "asia-southeast1" });
+// Set the region for all functions in this file
+// setGlobalOptions({ region: "asia-southeast1" }); // Handled in index.js
 const admin = require('firebase-admin');
 const db = admin.firestore();
 
 // === HELPER: Verify V2 Permissions ===
 async function verifyAction(uid, requiredScope, requiredTargetId) {
     const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) throw new functions.https.HttpsError('unauthenticated', 'User not found');
+    if (!userSnap.exists) throw new HttpsError('unauthenticated', 'User not found');
 
     const u = userSnap.data();
 
@@ -43,8 +44,10 @@ async function verifyAction(uid, requiredScope, requiredTargetId) {
 }
 
 // === 1. CREATE FINANCIAL REQUEST ===
-exports.createFinancialRequest = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.createFinancialRequest = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
     const { type, amount, description, locationId, unitId, category, proofImage } = data;
 
@@ -52,9 +55,9 @@ exports.createFinancialRequest = functions.https.onCall(async (data, context) =>
     // type: 'EXPENSE' (Buy something) | 'FUNDING' (Request money from HQ)
     // category: 'Ice', 'Fuel', etc.
 
-    if (!amount || amount <= 0) throw new functions.https.HttpsError("invalid-argument", "Amount must be > 0");
-    if (amount > 1000000000) throw new functions.https.HttpsError("invalid-argument", "Amount cannot exceed 1,000,000,000");
-    if (!description) throw new functions.https.HttpsError('invalid-argument', 'Description required');
+    if (!amount || amount <= 0) throw new HttpsError("invalid-argument", "Amount must be > 0");
+    if (amount > 1000000000) throw new HttpsError("invalid-argument", "Amount cannot exceed 1,000,000,000");
+    if (!description) throw new HttpsError('invalid-argument', 'Description required');
 
     const userRef = db.collection('users').doc(context.auth.uid);
     const userSnap = await userRef.get();
@@ -66,7 +69,7 @@ exports.createFinancialRequest = functions.https.onCall(async (data, context) =>
     let finalUnitId = unitId;
 
     if (u.role_v2 === 'UNIT_OP') {
-        if (type === 'FUNDING') throw new functions.https.HttpsError('permission-denied', 'Unit Ops cannot request HQ Funding.');
+        if (type === 'FUNDING') throw new HttpsError('permission-denied', 'Unit Ops cannot request HQ Funding.');
         // FORCE Scope
         finalLocationId = u.locationId;
         finalUnitId = u.target_id; // or u.unitId
@@ -80,7 +83,7 @@ exports.createFinancialRequest = functions.https.onCall(async (data, context) =>
     }
     // HQ_ADMIN: Can act as anyone (Trust Client)
 
-    if (!finalLocationId) throw new functions.https.HttpsError('failed-precondition', 'Could not derive Location Scope from User Profile.');
+    if (!finalLocationId) throw new HttpsError('failed-precondition', 'Could not derive Location Scope from User Profile.');
 
     // Create Request Doc
     const requestData = {
@@ -107,18 +110,20 @@ exports.createFinancialRequest = functions.https.onCall(async (data, context) =>
 });
 
 // === 2. APPROVE FINANCIAL REQUEST ===
-exports.approveFinancialRequest = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.approveFinancialRequest = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
     const { requestId } = data;
 
     const reqRef = db.collection('financial_requests').doc(requestId);
 
     await db.runTransaction(async (t) => {
         const doc = await t.get(reqRef);
-        if (!doc.exists) throw new functions.https.HttpsError('not-found', 'Request not found');
+        if (!doc.exists) throw new HttpsError('not-found', 'Request not found');
         const req = doc.data();
 
-        if (req.status !== 'PENDING') throw new functions.https.HttpsError('failed-precondition', 'Request already processed');
+        if (req.status !== 'PENDING') throw new HttpsError('failed-precondition', 'Request already processed');
 
         const userSnap = await t.get(db.collection('users').doc(context.auth.uid));
         const u = userSnap.data() || {};
@@ -134,16 +139,16 @@ exports.approveFinancialRequest = functions.https.onCall(async (data, context) =
             if (req.type === 'EXPENSE' && req.locationId === u.target_id) {
                 canApprove = true;
             } else if (req.type === 'FUNDING') {
-                throw new functions.https.HttpsError('permission-denied', 'Only HQ can approve Funding Requests.');
+                throw new HttpsError('permission-denied', 'Only HQ can approve Funding Requests.');
             } else {
                 // Wrong location
-                throw new functions.https.HttpsError('permission-denied', 'Wrong location scope.');
+                throw new HttpsError('permission-denied', 'Wrong location scope.');
             }
         } else {
-            throw new functions.https.HttpsError('permission-denied', 'Insufficient permissions to approve.');
+            throw new HttpsError('permission-denied', 'Insufficient permissions to approve.');
         }
 
-        if (!canApprove) throw new functions.https.HttpsError('permission-denied', 'Approval blocked.');
+        if (!canApprove) throw new HttpsError('permission-denied', 'Approval blocked.');
 
         // === EXECUTE ACCOUNTING LOGIC ===
 
@@ -158,11 +163,11 @@ exports.approveFinancialRequest = functions.https.onCall(async (data, context) =
 
             // Check Balance
             const walletDoc = await t.get(walletRef);
-            if (!walletDoc.exists) throw new functions.https.HttpsError('not-found', `Wallet ${walletId} missing`);
+            if (!walletDoc.exists) throw new HttpsError('not-found', `Wallet ${walletId} missing`);
 
             const currentBalance = walletDoc.data().balance || 0;
             if (currentBalance < req.amount) {
-                throw new functions.https.HttpsError('failed-precondition', `Insufficient Funds. Wallet: ${currentBalance}, Req: ${req.amount}`);
+                throw new HttpsError('failed-precondition', `Insufficient Funds. Wallet: ${currentBalance}, Req: ${req.amount}`);
             }
 
             // Deduct
@@ -231,18 +236,20 @@ exports.approveFinancialRequest = functions.https.onCall(async (data, context) =
 });
 
 // === 3. REJECT REQUEST ===
-exports.rejectFinancialRequest = functions.https.onCall(async (data, context) => {
-    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login required.');
+exports.rejectFinancialRequest = onCall(async (request) => {
+    const data = request.data;
+    const context = { auth: request.auth };
+    if (!context.auth) throw new HttpsError('unauthenticated', 'Login required.');
     const { requestId, reason } = data;
 
     const reqRef = db.collection('financial_requests').doc(requestId);
 
     await db.runTransaction(async (t) => {
         const doc = await t.get(reqRef);
-        if (!doc.exists) throw new functions.https.HttpsError('not-found', 'Request not found');
+        if (!doc.exists) throw new HttpsError('not-found', 'Request not found');
         const req = doc.data();
 
-        if (req.status !== 'PENDING') throw new functions.https.HttpsError('failed-precondition', 'Request already processed');
+        if (req.status !== 'PENDING') throw new HttpsError('failed-precondition', 'Request already processed');
 
         // Reuse verify scope logic or simplified:
         // Manager can reject local, HQ can reject anything.

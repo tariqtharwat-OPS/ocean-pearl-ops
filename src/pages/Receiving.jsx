@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useTransactionQueue } from '../contexts/TransactionQueueContext';
 import { db } from '../lib/firebase';
@@ -11,6 +12,7 @@ const DEFAULT_ROW = { itemId: '', sizeId: '', gradeId: '', quantityKg: '', price
 
 export default function Receiving() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const { currentUser } = useAuth();
     const { addTransaction } = useTransactionQueue();
 
@@ -111,7 +113,7 @@ export default function Receiving() {
 
     // -- SUBMIT --
     const handleSubmit = async () => {
-        if (!header.supplierId) return alert("Select Supplier");
+        if (!header.supplierId) return alert(t('alert_select_supplier'));
 
         // Validation: No Negatives
         const hasNegatives = rows.some(r => {
@@ -121,15 +123,22 @@ export default function Receiving() {
         });
 
         if (hasNegatives) {
-            return alert("CRITICAL: Quantity must be > 0 and Price cannot be negative.");
+            return alert(t('alert_critical_negatives'));
         }
 
         const validRows = rows.filter(r => r.itemId && parseFloat(r.quantityKg) > 0);
-        if (validRows.length === 0) return alert("No valid items to save.");
+        if (validRows.length === 0) return alert(t('alert_no_items'));
 
         setSubmitting(true);
 
         try {
+            // Determine Unit ID Fallback (for HQ/Admins without explicit unit context)
+            let targetUnit = currentUser.unitId;
+            if (!targetUnit && currentUser.locationId && LOCATIONS[currentUser.locationId]) {
+                const loc = LOCATIONS[currentUser.locationId];
+                if (loc.units && loc.units.length > 0) targetUnit = loc.units[0].id;
+            }
+
             // Sequential Insert
             // Note: We use one Batch ID for all lines. 
             // Phase 3: We pass 'customDate' to allow backdating.
@@ -137,7 +146,7 @@ export default function Receiving() {
                 await addTransaction({
                     type: 'PURCHASE_RECEIVE',
                     locationId: currentUser.locationId,
-                    unitId: currentUser.unitId,
+                    unitId: targetUnit,
                     supplierId: header.supplierId,
                     paymentMethod: header.terms,
                     paymentStatus: header.terms === 'cash' ? 'paid' : 'pending',
@@ -153,7 +162,7 @@ export default function Receiving() {
                     description: `Invoice ${batchId}`
                 });
             }
-            alert(`Invoice Saved! Batch: ${batchId}`);
+            alert(t('alert_invoice_saved') + batchId);
 
             // Fast Reset for next entry
             setRows([
@@ -193,7 +202,7 @@ export default function Receiving() {
     const locLabel = LOCATIONS[currentUser?.locationId]?.label || currentUser?.locationId;
     const unitLabel = LOCATIONS[currentUser?.locationId]?.units.find(u => u.id === currentUser?.unitId)?.label || currentUser?.unitId;
 
-    if (!currentUser.locationId) return <div className="p-10 text-center text-red-500 font-bold">⚠️ Select Location First</div>;
+    if (!currentUser.locationId) return <div className="p-10 text-center text-red-500 font-bold">{t('select_location_first')}</div>;
 
     return (
         <div className="space-y-6 pb-20 print:fixed print:inset-0 print:bg-white print:z-[9999] print:p-8 print:h-screen print:overflow-auto">
@@ -204,8 +213,8 @@ export default function Receiving() {
                         <ArrowLeft />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Receiving</h1>
-                        <p className="text-xs font-mono text-slate-400">Unit: {currentUser.unitId?.toUpperCase()}</p>
+                        <h1 className="text-2xl font-bold text-slate-800">{t('receiving')}</h1>
+                        <p className="text-xs font-mono text-slate-400">{t('unit')}: {currentUser.unitId?.toUpperCase()}</p>
                     </div>
                 </div>
                 <button onClick={handlePrint} className="p-2 hover:bg-slate-100 rounded-full text-slate-600" title="Print Invoice">
@@ -228,7 +237,7 @@ export default function Receiving() {
                         <div className="text-right">
                             <div className="text-sm font-bold text-slate-700">{unitLabel}</div>
                             <div className="text-xs text-slate-500 font-mono">{locLabel}</div>
-                            <div className="text-[10px] font-mono text-slate-400 mt-1">REF: {batchId}</div>
+                            <div className="text-[10px] font-mono text-slate-400 mt-1">{t('ref')}: {batchId}</div>
                         </div>
                     </div>
                 </div>
@@ -236,14 +245,14 @@ export default function Receiving() {
 
             {/* PRINT HEADER */}
             <div className="hidden print:block mb-8 text-center border-b pb-4">
-                <h1 className="text-2xl font-bold uppercase tracking-wider">Purchase Invoice</h1>
+                <h1 className="text-2xl font-bold uppercase tracking-wider">{t('purchase_invoice')}</h1>
                 <div className="flex justify-between items-end mt-4">
                     <div className="text-left">
-                        <div className="text-xs text-slate-500 uppercase">BATCH ID</div>
+                        <div className="text-xs text-slate-500 uppercase">{t('batch_id')}</div>
                         <div className="font-mono text-xl font-bold">{batchId}</div>
                     </div>
                     <div className="text-right">
-                        <div className="text-xs text-slate-500 uppercase">DATE</div>
+                        <div className="text-xs text-slate-500 uppercase">{t('date')}</div>
                         <div className="font-mono text-lg">{new Date(header.date).toLocaleDateString()}</div>
                     </div>
                 </div>
@@ -252,25 +261,25 @@ export default function Receiving() {
             {/* HEADER FORM */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200 print:hidden">
                 <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Supplier / Source</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">{t('supplier_source')}</label>
                     <div className="relative">
                         <select
                             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ocean-dial appearance-none"
                             value={header.supplierId}
                             onChange={(e) => setHeader({ ...header, supplierId: e.target.value })}
                         >
-                            <option value="">-- Select Supplier / Fisher --</option>
-                            <option value="cash_general">CASH (General / Walk-in)</option>
+                            <option value="">{t('select_supplier_placeholder')}</option>
+                            <option value="cash_general">{t('cash_general')}</option>
                             {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         {/* Print Only Text */}
                         <div className="hidden print:block text-lg font-bold border-b border-black w-full pb-1">
-                            {header.supplierId === 'cash_general' ? 'CASH (General / Walk-in)' : (partners.find(p => p.id === header.supplierId)?.name || '________________')}
+                            {header.supplierId === 'cash_general' ? t('cash_general') : (partners.find(p => p.id === header.supplierId)?.name || '________________')}
                         </div>
                     </div>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Transaction Date</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">{t('transaction_date')}</label>
                     <div className="relative">
                         <input
                             type="date"
@@ -282,14 +291,14 @@ export default function Receiving() {
                     </div>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Payment Terms</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">{t('payment_terms')}</label>
                     <select
                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ocean-dial print:hidden"
                         value={header.terms}
                         onChange={(e) => setHeader({ ...header, terms: e.target.value })}
                     >
-                        <option value="pending">Credit / Pending (Pay Later)</option>
-                        <option value="cash">Cash (Paid Now)</option>
+                        <option value="pending">{t('term_credit')}</option>
+                        <option value="cash">{t('term_cash')}</option>
                     </select>
                 </div>
             </div>
@@ -298,12 +307,12 @@ export default function Receiving() {
                 <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 print:bg-white print:text-black print:uppercase">
                         <tr>
-                            <th className="p-4 print:p-2 w-auto">Item Details</th>
-                            <th className="p-4 w-24 print:p-2">Size</th>
-                            <th className="p-4 w-24 print:p-2">Grade</th>
-                            <th className="p-4 w-32 text-right print:p-2">Qty (Kg)</th>
-                            <th className="p-4 w-40 text-right print:p-2">Price/Kg</th>
-                            <th className="p-4 w-40 text-right print:p-2">Subtotal</th>
+                            <th className="p-4 print:p-2 w-auto">{t('item_details')}</th>
+                            <th className="p-4 w-24 print:p-2">{t('size')}</th>
+                            <th className="p-4 w-24 print:p-2">{t('grade')}</th>
+                            <th className="p-4 w-32 text-right print:p-2">{t('qty')}</th>
+                            <th className="p-4 w-40 text-right print:p-2">{t('price')}</th>
+                            <th className="p-4 w-40 text-right print:p-2">{t('subtotal')}</th>
                             <th className="p-4 w-12 print:hidden"></th>
                         </tr>
                     </thead>
@@ -316,7 +325,7 @@ export default function Receiving() {
                                         value={row.itemId}
                                         onChange={e => updateRow(idx, 'itemId', e.target.value)}
                                     >
-                                        <option value="">Select Species...</option>
+                                        <option value="">{t('select_species')}</option>
                                         {catalog.map(item => (
                                             <option key={item.id} value={item.id}>{item.label}</option>
                                         ))}
@@ -387,7 +396,7 @@ export default function Receiving() {
                     </tbody>
                     <tfoot className="bg-slate-50 border-t border-slate-200 print:bg-white print:border-t-2 print:border-black">
                         <tr>
-                            <td colSpan="3" className="p-4 text-right font-bold text-slate-500 print:text-black">Grand Total</td>
+                            <td colSpan="3" className="p-4 text-right font-bold text-slate-500 print:text-black">{t('grand_total')}</td>
                             <td className="p-4 text-right font-mono font-bold">{totalQty.toLocaleString()} kg</td>
                             <td></td>
                             <td className="p-4 text-right font-mono font-bold text-lg text-ocean-dial print:text-black">
@@ -402,10 +411,10 @@ export default function Receiving() {
                         onClick={addRow}
                         className="flex items-center gap-2 text-sm font-bold text-ocean-dial hover:text-cyan-700 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
                     >
-                        <Plus size={16} /> Add Line Item
+                        <Plus size={16} /> {t('add_line_item')}
                     </button>
                     <button onClick={handlePrint} className="flex items-center gap-2 text-slate-500 hover:text-slate-800">
-                        <Printer size={16} /> Print Preview
+                        <Printer size={16} /> {t('print_preview')}
                     </button>
                 </div>
             </div>
@@ -414,11 +423,11 @@ export default function Receiving() {
             <div className="hidden print:flex justify-between mt-12 pt-8">
                 <div className="text-center">
                     <div className="h-16 border-b border-black w-48 mb-2"></div>
-                    <div className="text-sm font-bold">Supplier Signature</div>
+                    <div className="text-sm font-bold">{t('supplier_signature')}</div>
                 </div>
                 <div className="text-center">
                     <div className="h-16 border-b border-black w-48 mb-2"></div>
-                    <div className="text-sm font-bold">Receiver Signature</div>
+                    <div className="text-sm font-bold">{t('receiver_signature')}</div>
                 </div>
             </div>
 
@@ -429,10 +438,10 @@ export default function Receiving() {
                     disabled={submitting}
                     className="btn btn-primary px-8 py-3 flex items-center gap-3 shadow-lg"
                 >
-                    {submitting ? 'Saving Invoice...' : (
+                    {submitting ? t('saving_invoice') : (
                         <>
                             <Save size={20} />
-                            Save Invoice
+                            {t('save_invoice_btn')}
                         </>
                     )}
                 </button>

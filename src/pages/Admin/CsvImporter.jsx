@@ -28,8 +28,8 @@ export default function CsvImporter({ onClose }) {
                 const iMap = {};
                 iSnap.docs.forEach(d => {
                     const data = d.data();
-                    iMap[d.id.toLowerCase()] = d.id;
-                    iMap[data.name.toLowerCase()] = d.id; // Map "Yellowfin Tuna" -> "tuna_yellowfin"
+                    if (d.id) iMap[d.id.toLowerCase()] = d.id;
+                    if (data.name) iMap[data.name.toLowerCase()] = d.id;
                     if (data.name_id) iMap[data.name_id.toLowerCase()] = d.id;
                 });
                 setItemsMap(iMap);
@@ -39,8 +39,8 @@ export default function CsvImporter({ onClose }) {
                 const pMap = {};
                 pSnap.docs.forEach(d => {
                     const data = d.data();
-                    pMap[d.id.toLowerCase()] = d.id;
-                    pMap[data.name.toLowerCase()] = d.id;
+                    if (d.id) pMap[d.id.toLowerCase()] = d.id;
+                    if (data.name) pMap[data.name.toLowerCase()] = d.id;
                 });
                 setPartnersMap(pMap);
             } catch (e) {
@@ -61,8 +61,8 @@ export default function CsvImporter({ onClose }) {
             const rawItem = cols[1];
             const rawSupplier = cols[4];
 
-            const matchedItem = itemsMap[rawItem.toLowerCase()] || rawItem; // Try map, else keep raw (user might know ID)
-            const matchedSupplier = rawSupplier ? (partnersMap[rawSupplier.toLowerCase()] || rawSupplier) : 'cash_general';
+            const matchedItem = (rawItem && itemsMap[rawItem.toLowerCase()]) || rawItem; // Try map, else keep raw (user might know ID)
+            const matchedSupplier = rawSupplier ? ((partnersMap[rawSupplier.toLowerCase()]) || rawSupplier) : 'cash_general';
 
             return {
                 id: idx,
@@ -72,7 +72,7 @@ export default function CsvImporter({ onClose }) {
                 qty: parseFloat(cols[2]),
                 price: parseFloat(cols[3]),
                 supplier: matchedSupplier,
-                valid: !!itemsMap[rawItem.toLowerCase()] // visual flag
+                valid: !!(rawItem && itemsMap[rawItem.toLowerCase()]) // visual flag
             };
         }).filter(r => r && !isNaN(r.qty));
         setPreview(parsed);
