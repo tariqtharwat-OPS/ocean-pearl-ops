@@ -86,10 +86,83 @@ export default function Layout() {
     // Calculate top padding for main content (adjust for CEO banner)
     const mainTopClass = ceoMode ? 'pt-12' : '';
 
+    // -- CONTEXT SWITCHING LOGIC (C4) --
+    const [switching, setSwitching] = React.useState(false);
+    const [pendingContext, setPendingContext] = React.useState(null); // { locId, unitId }
+
+    const handleContextChange = (locId, unitId) => {
+        // C4: Confirmation Curtain
+        // If changing Loop to Kaimana, risk is high.
+        // We pause and ask.
+        if (locId === currentUser.locationId && unitId === currentUser.unitId) return;
+
+        const locLabel = LOCATIONS[locId?.toLowerCase()]?.label || locId;
+        const confirmMsg = `Switching context to\n\n${locLabel?.toUpperCase()}\n${unitId?.toUpperCase() || ''}\n\nAre you sure?`;
+
+        // Use native check for speed, or custom modal?
+        // User requested "Context Safety". A distinct confirmation is key.
+        // Let's use window.confirm for now to be strictly blocking, 
+        // OR better: use the "Pending" state to render a custom modal below.
+        setPendingContext({ locId, unitId, label: locLabel });
+    };
+
+    const confirmSwitch = () => {
+        if (!pendingContext) return;
+        setSwitching(true);
+        // Artificial delay for visual cues (C4 'Switching...' state)
+        setTimeout(() => {
+            updateViewContext(pendingContext.locId, pendingContext.unitId);
+            setSwitching(false);
+            setPendingContext(null);
+            // Optional: visual flash or toast here
+        }, 800);
+    };
+
     return (
         <div className="min-h-screen bg-neutral-50 flex flex-col">
             {/* CEO Control Panel & Banner */}
             <CEOControlPanel />
+
+            {/* C4: SWITCHING CURTAIN */}
+            {(switching || pendingContext) && (
+                <div className="fixed inset-0 z-[9999] bg-slate-900/90 flex flex-col items-center justify-center text-white animate-in fade-in duration-200">
+                    {switching ? (
+                        <>
+                            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-ocean-dial mb-6"></div>
+                            <h2 className="text-2xl font-bold tracking-widest uppercase">Switching Context...</h2>
+                        </>
+                    ) : (
+                        <div className="bg-white text-slate-900 p-8 rounded-2xl max-w-sm w-full shadow-2xl text-center transform scale-100 transition-all">
+                            <h3 className="text-xl font-bold mb-2">Switch Logic</h3>
+                            <p className="text-slate-500 mb-6">You are entering the operational context for:</p>
+
+                            <div className="bg-slate-100 p-4 rounded-xl mb-8 border border-slate-200">
+                                <div className="text-2xl font-black text-ocean-dial uppercase tracking-wide">
+                                    {pendingContext.label}
+                                </div>
+                                <div className="text-sm font-mono text-slate-500 mt-1 uppercase">
+                                    {pendingContext.unitId || 'All Units'}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => setPendingContext(null)}
+                                    className="px-4 py-3 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-slate-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmSwitch}
+                                    className="px-4 py-3 bg-ocean-dial hover:bg-cyan-700 text-white rounded-lg font-bold transition-colors shadow-lg"
+                                >
+                                    Confirm Switch
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Top Header */}
             <header className={`bg-primary text-white p-3 shadow-md sticky z-50 border-b-4 border-secondary ${ceoMode ? 'top-12' : 'top-0'}`}>
@@ -97,48 +170,46 @@ export default function Layout() {
 
                     {/* LEFT: Context Identity */}
                     <div className="flex items-center gap-3">
-                        <div className="bg-white/10 p-2 rounded-lg">
+                        <div className="bg-white/10 p-2 rounded-lg hidden sm:block">
                             <span className="text-xl">
                                 {isHQ ? '👑' : isManager ? '👔' : '👷'}
                             </span>
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 mb-1">
                                 <span className="font-bold text-sm leading-tight">{currentUser?.displayName || currentUser?.email?.split('@')[0]}</span>
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wider ${isHQ || isLegacyAdmin ? 'bg-yellow-500 text-black' : 'bg-white/20 text-white'}`}>
                                     {role.replace('_', ' ')}
                                 </span>
                             </div>
 
-                            {/* Context Switcher - Only for HQ/Admins to peek at other locations (LEGACY MODE - hidden when CEO mode active) */}
+                            {/* Context Switcher - M7: Enhanced Visibility */}
                             {!ceoMode && (isHQ || isLegacyAdmin) ? (
                                 <div className="flex flex-col gap-1 mt-1">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-white/60 w-10">{t('loc')}:</span>
                                         <select
-                                            className="bg-black/20 text-xs border border-white/10 rounded px-1 py-0.5 focus:outline-none focus:border-secondary w-32"
+                                            className="bg-white text-slate-900 text-sm font-bold border-2 border-secondary rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-400 w-40 shadow-sm"
                                             value={currentUser?.locationId || ''}
                                             onChange={(e) => {
                                                 const newLocId = e.target.value;
                                                 const newLoc = LOCATIONS[newLocId?.toLowerCase()];
                                                 const defaultUnit = newLoc && newLoc.units.length > 0 ? newLoc.units[0].id : '';
-                                                updateViewContext(newLocId, defaultUnit);
+                                                handleContextChange(newLocId, defaultUnit);
                                             }}
                                         >
-                                            <option value="">🌍 Global</option>
+                                            <option value="">🌍 Global HQ</option>
                                             {Object.values(LOCATIONS).map(loc => (
-                                                <option key={loc.id} value={loc.id}>{loc.label}</option>
+                                                <option key={loc.id} value={loc.id} className="font-bold text-lg">{loc.label}</option>
                                             ))}
                                         </select>
                                     </div>
                                     {/* Optional Unit Switcher for Admin */}
                                     {currentUser?.locationId && LOCATIONS[currentUser.locationId] && (
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-white/60 w-10">{t('unit')}:</span>
                                             <select
-                                                className="bg-black/20 text-xs border border-white/10 rounded px-1 py-0.5 focus:outline-none focus:border-secondary w-32"
+                                                className="bg-white/90 text-slate-900 text-xs font-mono border-2 border-secondary/50 rounded px-2 py-1 focus:outline-none w-40"
                                                 value={currentUser?.unitId || ''}
-                                                onChange={(e) => updateViewContext(currentUser.locationId, e.target.value)}
+                                                onChange={(e) => handleContextChange(currentUser.locationId, e.target.value)}
                                             >
                                                 {LOCATIONS[currentUser.locationId].units.map(u => (
                                                     <option key={u.id} value={u.id}>{u.label}</option>

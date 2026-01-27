@@ -15,7 +15,9 @@ export default function SelectWithAddNew({
     scope = {}, // { locationId: '...' } for scoping filtered list AND creating new item
     displayField = "name",
     filterByLocation = false, // If true, only show items matching scope.locationId
-    allowAdd = true
+    allowAdd = true,
+    queryConstraints = [], // Firestore query constraints (where, limit, etc)
+    defaultFields = {} // Extra fields for new items
 }) {
     const { currentUser } = useAuth();
     const authContext = useAuth();
@@ -31,25 +33,20 @@ export default function SelectWithAddNew({
     useEffect(() => {
         let q = collection(db, collectionName);
 
-        // Basic filtering if needed (e.g. vendors by location)
-        // Note: For now, we fetch all active items, client-side filter if complex,
-        // or simple query if straightforward.
-        const requirements = [orderBy(displayField, 'asc')];
+        // Merge default ordering with custom constraints
+        // We put custom constraints first so they can coexist with or override ordering if needed
+        // But usually we want orderBy at the end.
+        // If queryConstraints has orderBy, we might conflict.
+        // For simplicity, we append our default order IF not present? 
+        // Or just let user responsible. 
+        // Let's assume user passes specific constraints.
 
-        // If filtering by location is strictly required at DB level:
-        if (filterByLocation && scope.locationId) {
-            // Check if collection is 'vendors' which has locationId
-            // or 'expense_types' which might be global.
-            // For now, let's assume we want ALL global + Local
-            // This is hard to query in one go.
-            // Simplified: Fetch all active.
-        }
+        let allConstraints = [...queryConstraints];
+        // Only add default orderBy if not manually provided?
+        // Hard to check. Let's just add it.
+        allConstraints.push(orderBy(displayField, 'asc'));
 
-        // We'll just fetch all for now and filter in memory if list is small (<1000)
-        // Optimally: where('isActive', '==', true)
-        // But let's assume raw collection for phase 1 efficiency
-
-        const unsub = onSnapshot(query(q, ...requirements), (snap) => {
+        const unsub = onSnapshot(query(q, ...allConstraints), (snap) => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             // Client side filter for active and location scope
             const filtered = list.filter(item => {
@@ -71,7 +68,7 @@ export default function SelectWithAddNew({
         });
 
         return () => unsub();
-    }, [collectionName, filterByLocation, scope.locationId]);
+    }, [collectionName, filterByLocation, scope.locationId, JSON.stringify(queryConstraints)]); // Deep check for array
 
     const handleAddNew = async () => {
         if (!newItemName.trim()) return;
@@ -90,6 +87,7 @@ export default function SelectWithAddNew({
                 createdBy: currentUser.uid,
                 createdByName: currentUser.displayName || currentUser.email,
                 roleSnapshot: currentUser.role_v2,
+                ...defaultFields // Merge extra fields (e.g. type: 'supplier')
             };
 
             // Add scope (locationId) if provided and relevant

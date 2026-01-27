@@ -8,6 +8,7 @@ import { ArrowLeft, Plus, Trash2, Save, Calendar, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSizeList, GRADES, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
 import { useWriteGuard } from '../lib/writeGuard';
+import SelectWithAddNew from '../components/SelectWithAddNew';
 
 const DEFAULT_ROW = { itemId: '', sizeId: '', gradeId: '', quantityKg: '', pricePerKg: '', total: 0 };
 
@@ -28,6 +29,7 @@ export default function Receiving() {
     });
     const [header, setHeader] = useState({
         supplierId: '',
+        supplierName: '', // Cached for print view
         date: new Date().toISOString().split('T')[0],
         terms: 'pending' // Default to pending
     });
@@ -46,6 +48,7 @@ export default function Receiving() {
     const [submitting, setSubmitting] = useState(false);
 
     // -- LOAD DATA --
+    // -- LOAD DATA --
     useEffect(() => {
         if (!currentUser.locationId) return;
         setLoading(true);
@@ -53,15 +56,7 @@ export default function Receiving() {
 
         const load = async () => {
             try {
-                // 1. Partners (REAL-TIME REACTIVITY)
-                const q = query(
-                    collection(db, 'partners'),
-                    where('type', 'in', ['supplier', 'buy_agent'])
-                );
-                unsubPartners = onSnapshot(q, (snap) => {
-                    setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
-
+                // 1. Partners fetching REMOVED - handled by SelectWithAddNew
 
                 // 2. Dynamic Catalog
                 const unit = currentUser.unitId || '';
@@ -72,7 +67,7 @@ export default function Receiving() {
                 } else {
                     const iSnap = await getDocs(collection(db, 'raw_materials'));
                     items = iSnap.docs
-                        .filter(d => d.data().active)
+                        .filter(d => d.data().active && d.data().name && d.data().name.trim() !== '')
                         .map(d => ({
                             id: d.id,
                             label: `${d.data().name} (${d.data().name_id || '-'})`,
@@ -268,21 +263,23 @@ export default function Receiving() {
             {/* HEADER FORM */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200 print:hidden">
                 <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">{t('supplier_source')}</label>
-                    <div className="relative">
-                        <select
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-700 outline-none focus:ring-2 focus:ring-ocean-dial appearance-none"
-                            value={header.supplierId}
-                            onChange={(e) => setHeader({ ...header, supplierId: e.target.value })}
-                        >
-                            <option value="">{t('select_supplier_placeholder')}</option>
-                            <option value="cash_general">{t('cash_general')}</option>
-                            {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                        {/* Print Only Text */}
-                        <div className="hidden print:block text-lg font-bold border-b border-black w-full pb-1">
-                            {header.supplierId === 'cash_general' ? t('cash_general') : (partners.find(p => p.id === header.supplierId)?.name || '________________')}
-                        </div>
+                    <SelectWithAddNew
+                        label={t('supplier_source')}
+                        collectionName="partners"
+                        displayField="name"
+                        value={header.supplierId}
+                        onChange={(id) => setHeader(prev => ({ ...prev, supplierId: id }))}
+                        onObjectChange={(obj) => setHeader(prev => ({ ...prev, supplierName: obj.name }))}
+                        queryConstraints={[where('type', 'in', ['supplier', 'buy_agent'])]}
+                        defaultFields={{ type: 'supplier' }} // Default new to supplier
+                        scope={{ locationId: currentUser.locationId }}
+                        filterByLocation={false} // Show all suppliers
+                        allowAdd={true}
+                    />
+
+                    {/* Print Only Text */}
+                    <div className="hidden print:block text-lg font-bold border-b border-black w-full pb-1">
+                        {header.supplierName || '________________'}
                     </div>
                 </div>
                 <div>
