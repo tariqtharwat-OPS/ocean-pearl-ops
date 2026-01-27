@@ -46,11 +46,11 @@ function AppRoutes() {
     const { currentUser, ceoMode } = useAuth();
 
     // Common sets
-    const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP', 'unit_admin', 'viewer', 'site_worker'];
+    const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP', 'unit_admin', 'viewer', 'site_worker', 'location_manager', 'unit_operator'];
     const ADMIN_ONLY = ['admin', 'hq', 'HQ_ADMIN'];
     const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN'];
-    const REPORTS_VIEW = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_admin', 'READ_ONLY', 'viewer'];
-    const TREASURY_OPS = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager'];
+    const REPORTS_VIEW = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_admin', 'READ_ONLY', 'viewer', 'location_manager'];
+    const TREASURY_OPS = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_manager'];
 
     // EXTENDED KEY for strict context safety
     const contextKey = `${currentUser?.locationId}_${currentUser?.unitId || 'nounit'}_${currentUser?.role_v2}_${ceoMode || 'normal'}`;

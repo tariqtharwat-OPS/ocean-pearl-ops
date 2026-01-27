@@ -1045,3 +1045,74 @@ exports.injectDay1 = onRequest(async (req, res) => {
 
 const api = require("./api");
 exports.getFinancialRequests = api.getFinancialRequests;
+
+/**
+ * adminFixAuth
+ * EMERGENCY ONLY: Resets/Creates the simulation users for Phase 6.
+ * Trigger via: https://asia-southeast1-oceanpearl-ops.cloudfunctions.net/adminFixAuth?key=OpsSimulation2026!
+ */
+exports.adminFixAuth = onRequest(async (req, res) => {
+    const key = req.query.key;
+    if (key !== 'OpsSimulation2026!') {
+        return res.status(403).send("Unauthorized");
+    }
+
+    const users = [
+        {
+            email: 'manager_kaimana@ops.com',
+            password: 'OpsKaimana2026!',
+            role: 'manager',
+            role_v2: 'location_manager',
+            locationId: 'kaimana',
+            unitId: null,
+            displayName: 'Pak Budi (Manager)'
+        },
+        {
+            email: 'operator_kaimana@ops.com',
+            password: 'OpsTeri2026!',
+            role: 'operator',
+            role_v2: 'unit_operator',
+            locationId: 'kaimana',
+            unitId: 'gudang_ikan_teri',
+            displayName: 'Usi (Operator)'
+        }
+    ];
+
+    const results = [];
+
+    for (const u of users) {
+        try {
+            let userRecord;
+            try {
+                userRecord = await admin.auth().getUserByEmail(u.email);
+                // Update Password
+                await admin.auth().updateUser(userRecord.uid, { password: u.password });
+                results.push(`Updated Auth: ${u.email}`);
+            } catch (e) {
+                userRecord = await admin.auth().createUser({
+                    email: u.email,
+                    password: u.password,
+                    displayName: u.displayName
+                });
+                results.push(`Created Auth: ${u.email}`);
+            }
+
+            // Sync Firestore
+            await db.collection('users').doc(userRecord.uid).set({
+                email: u.email,
+                role: u.role,
+                role_v2: u.role_v2,
+                locationId: u.locationId,
+                unitId: u.unitId,
+                displayName: u.displayName,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            results.push(`Synced Firestore: ${u.email}`);
+
+        } catch (e) {
+            results.push(`Error with ${u.email}: ${e.message}`);
+        }
+    }
+
+    res.status(200).send(results.join('\n'));
+});
