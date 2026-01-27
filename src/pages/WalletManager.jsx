@@ -526,7 +526,6 @@ function SendFundsForm({ onClose, functions }) {
                 description: desc,
                 transferDirection: 'IN', // IN to Location (HQ -> Loc)
                 paymentMethod: 'cash'
-                paymentMethod: 'cash'
             });
             toast.success("Funds Transferred Successfully!");
             setIsDirty(false);
