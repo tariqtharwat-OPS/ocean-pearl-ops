@@ -3,8 +3,8 @@
 **Scope:** Hardening (M3 Unsaved Changes, M8 API Error Handling) and Repo Hygiene.
 
 ## ✅ M3: Unsaved Changes Guard
-1.  **Preparation**: Log in as Unit Operator. Go to **Receiving**.
-2.  **Make Dirty**: Add a line item or change a quantity. Do NOT save.
+1.  **Preparation**: Log in as Unit Operator. Go to **Receiving** OR **Expenses**.
+2.  **Make Dirty**: Add a line item, type a note, or change a quantity. Do NOT save.
 3.  **Test 1 (Browser Refresh)**:
     *   Press F5 or click Refresh.
     *   **Verify**: Browser shows standard "Leave site? Changes you made may not be saved" dialog.
