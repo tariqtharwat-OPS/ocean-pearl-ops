@@ -389,6 +389,8 @@ function UserEditModal({ user, onClose, onSuccess }) {
         }
     };
 
+    const [resetResult, setResetResult] = useState(null); // { tempPassword: '' }
+
     const handleResetPassword = async () => {
         if (!confirm(`Generate temporary password for ${user.email}?`)) return;
         setUpdating(true);
@@ -399,13 +401,53 @@ function UserEditModal({ user, onClose, onSuccess }) {
                 action: 'reset_password',
                 payload: {}
             });
-            prompt("Temporary Password (COPY NOW):", res.data.tempPassword);
-            onSuccess("Password reset complete.");
+            setResetResult({ tempPassword: res.data.tempPassword });
+            onSuccess("Password reset complete. Please copy the password below.");
         } catch (e) {
             alert(e.message);
+        } finally {
             setUpdating(false);
         }
     };
+
+    if (resetResult) {
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] backdrop-blur-sm">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm animate-fade-in text-center">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+                        <span className="text-2xl">🔑</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Password Reset Successful</h3>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Share this temporary password with <strong>{user.email}</strong>.
+                    </p>
+
+                    <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 mb-6 relative group">
+                        <code className="text-xl font-mono font-bold text-slate-800 block break-all">
+                            {resetResult.tempPassword}
+                        </code>
+                        <button
+                            onClick={() => {
+                                navigator.clipboard.writeText(resetResult.tempPassword);
+                                alert("Copied to clipboard!");
+                            }}
+                            className="absolute right-2 top-2 p-1 text-slate-400 hover:text-blue-600 bg-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Copy"
+                        >
+                            📋
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => { setResetResult(null); onClose(); }} // Close formatting
+                        className="w-full btn btn-primary py-2"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const handleDeleteUser = async () => {
         if (!confirm(`⚠️ WARNING: This will PERMANENTLY DELETE ${user.email} from both Authentication and Firestore.\n\nThis action CANNOT be undone!\n\nType the user's email to confirm deletion.`)) return;

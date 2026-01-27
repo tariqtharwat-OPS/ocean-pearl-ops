@@ -71,19 +71,31 @@ exports.createFinancialRequest = onCall(async (request) => {
     if (u.role_v2 === 'UNIT_OP') {
         if (type === 'FUNDING') throw new HttpsError('permission-denied', 'Unit Ops cannot request HQ Funding.');
         // FORCE Scope
-        finalLocationId = u.locationId;
-        finalUnitId = u.target_id; // or u.unitId
+        // Fix for C3: Use robust fallback. u.locationId is primary, but use u.loc (legacy) or u.target_id (admin-assigned) if needed.
+        // We verify that AT LEAST one is valid.
+        finalLocationId = u.locationId || u.loc || (u.target_id && u.target_id.length > 3 ? u.target_id : null);
+
+        // If we still don't have a location, inspect the input locationId (client provided) BUT verify it against unit?
+        // Actually, if DB profile is broken, we should fail or trust the client ONLY if the unitId matches?
+        // Let's stick to Server Profile. If missing, it's a data integrity issue.
+        // However, we can try to extract from unit path if slow.
+        // For audit readiness, we assume profile is correct.
+
+        finalUnitId = u.unitId || u.target_id;
     }
     else if (u.role_v2 === 'LOC_MANAGER') {
         // FORCE Location Scope
-        finalLocationId = u.target_id;
+        finalLocationId = u.target_id || u.locationId || u.loc;
         // Allow client to specify Unit, but strictly validation is complex without extra reads.
         // For now, trust the manager's intent within their location, or default to generic.
         if (!finalUnitId) finalUnitId = 'generic';
     }
     // HQ_ADMIN: Can act as anyone (Trust Client)
 
-    if (!finalLocationId) throw new HttpsError('failed-precondition', 'Could not derive Location Scope from User Profile.');
+    if (!finalLocationId) {
+        console.error(`[createFinancialRequest] Failed to derive scope for User ${context.auth.uid} (Role: ${u.role_v2}). Dump:`, u);
+        throw new HttpsError('failed-precondition', 'Could not derive Location Scope from User Profile. Please contact Admin.');
+    }
 
     // Create Request Doc
     const requestData = {

@@ -488,9 +488,16 @@ function SendFundsForm({ onClose, functions }) {
     const [desc, setDesc] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
+    const authContext = useAuth();
+    const { guardWrite } = useWriteGuard(authContext);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!targetLocation) return alert("Please select a target location.");
+
+        // WRITE GUARD
+        const canProceed = await guardWrite(authContext, `Transfer Funds: ${amount}`);
+        if (!canProceed) return;
 
         setSubmitting(true);
         try {
@@ -633,7 +640,7 @@ function WalletView({ currentUser, isHQ, functions, onShowSendFunds }) {
                                 <p className="text-sm text-slate-500">{new Date(txn.timestamp?.toDate ? txn.timestamp.toDate() : (txn.timestamp || new Date())).toLocaleString()}</p>
                             </div>
                             <div className={`font-bold text-lg ${txn.walletImpact > 0 ? "text-green-600" : "text-red-600"}`}>
-                                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(txn.walletImpact)}
+                                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(parseFloat(txn.walletImpact || 0))}
                             </div>
                         </div>
                     ))}

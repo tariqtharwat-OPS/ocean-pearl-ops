@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
+import { useAuth } from './AuthContext';
+import { guardWrite } from '../lib/writeGuard';
 
 const TransactionQueueContext = createContext();
 
@@ -9,6 +11,7 @@ export function useTransactionQueue() {
 }
 
 export function TransactionQueueProvider({ children }) {
+    const authContext = useAuth(); // Access auth for guard
     const [queue, setQueue] = useState([]);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [offline, setOffline] = useState(false);
@@ -94,6 +97,16 @@ export function TransactionQueueProvider({ children }) {
     };
 
     const addTransaction = async (data) => {
+        // --- WRITE GUARD ---
+        // We use window.confirm fallback here because this might be called non-interactively or deep in loops.
+        // Ideally, high-level components guard before calling this.
+        const actionName = `Transaction: ${data.type}`;
+        const canWrite = await guardWrite(authContext, actionName);
+        if (!canWrite) {
+            return { success: false, blocked: true, message: 'Write blocked by security guard' };
+        }
+        // -------------------
+
         if (isOnline) {
             try {
                 const postTransaction = httpsCallable(functions, 'postTransaction');
@@ -131,3 +144,4 @@ export function TransactionQueueProvider({ children }) {
         </TransactionQueueContext.Provider>
     );
 }
+

@@ -7,6 +7,7 @@ import { collection, getDocs, query, orderBy, where, onSnapshot } from 'firebase
 import { ArrowLeft, Plus, Trash2, Save, Calendar, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSizeList, GRADES, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
+import { useWriteGuard } from '../lib/writeGuard';
 
 const DEFAULT_ROW = { itemId: '', sizeId: '', gradeId: '', quantityKg: '', pricePerKg: '', total: 0 };
 
@@ -14,6 +15,8 @@ export default function Receiving() {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const { currentUser } = useAuth();
+    const authContext = useAuth();
+    const { guardWrite } = useWriteGuard(authContext);
     const { addTransaction } = useTransactionQueue();
 
     // -- HEADER STATE --
@@ -114,6 +117,10 @@ export default function Receiving() {
     // -- SUBMIT --
     const handleSubmit = async () => {
         if (!header.supplierId) return alert(t('alert_select_supplier'));
+
+        // WRITE GUARD
+        const canProceed = await guardWrite(authContext, `Receive Invoice: ${batchId}`);
+        if (!canProceed) return;
 
         // Validation: No Negatives
         const hasNegatives = rows.some(r => {

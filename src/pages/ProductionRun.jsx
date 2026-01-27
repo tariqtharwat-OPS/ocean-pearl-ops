@@ -6,6 +6,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { ArrowLeft, Plus, Trash2, Gauge, AlertTriangle, CheckCircle, Save, Printer, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useWriteGuard } from '../lib/writeGuard';
 // Inline all constants to completely avoid circular dependency issues
 const GRADES = ['A', 'B', 'C', 'Reject', 'Mix'];
 
@@ -138,6 +139,10 @@ export default function ProductionRun() {
     const [rawMeta, setRawMeta] = useState({}); // { ID: { category, name, ... } }
     const [finishedProducts, setFinishedProducts] = useState([]); // All FPs
 
+    // WRITE GUARD
+    const authContext = useAuth();
+    const { guardWrite } = useWriteGuard(authContext);
+
     const [input, setInput] = useState({
         rawStockId: '', // RAW_{itemId}
         rawItemId: '',  // {itemId}
@@ -265,6 +270,10 @@ export default function ProductionRun() {
     const yieldStatus = getYieldStatus();
 
     const handleSubmit = async () => {
+        // WRITE GUARD
+        const canProceed = await guardWrite(authContext, `Production Run: ${batchId}`);
+        if (!canProceed) return;
+
         // 1. Strict Validation (Negatives)
         if (inputKg <= 0) return alert("Input Weight must be positive.");
 

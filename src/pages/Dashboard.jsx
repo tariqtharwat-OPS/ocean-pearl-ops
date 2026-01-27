@@ -127,6 +127,20 @@ function LocationManagerView({ currentUser }) {
                 </div>
             )}
 
+            {/* QUICK ACTIONS (Fix C6) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button onClick={() => window.location.href='/expenses'} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-purple-500 hover:shadow-md transition-all text-left">
+                     <div className="p-3 bg-purple-100 text-purple-600 rounded-full w-fit mb-3"><DollarSign size={24} /></div>
+                     <h3 className="font-bold text-slate-700">Approvals</h3>
+                     <p className="text-xs text-slate-500">Review Expenses</p>
+                </button>
+                <button onClick={() => window.location.href='/wallet'} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-500 hover:shadow-md transition-all text-left">
+                     <div className="p-3 bg-emerald-100 text-emerald-600 rounded-full w-fit mb-3"><Activity size={24} /></div>
+                     <h3 className="font-bold text-slate-700">Wallet</h3>
+                     <p className="text-xs text-slate-500">Manage Funds</p>
+                </button>
+            </div>
+
             <RecentTransactions locationId={currentUser.locationId} />
         </div>
     );
