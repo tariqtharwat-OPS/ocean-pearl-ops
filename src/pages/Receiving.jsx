@@ -69,7 +69,7 @@ export default function Receiving() {
                 const unit = currentUser.unitId || '';
                 let items = [];
 
-                if (unit === 'gudang_teri') {
+                if (unit === 'gudang_teri' || unit === 'gudang_ikan_teri') {
                     items = [{ id: 'anchovy_teri', label: 'Anchovy (Ikan Teri)', active: true }];
                 } else {
                     const iSnap = await getDocs(collection(db, 'raw_materials'));

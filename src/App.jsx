@@ -28,11 +28,12 @@ function PrivateRoute({ children, allowedRoles = [] }) {
     const hasPermission = allowedRoles.includes(currentUser.role) || allowedRoles.includes(currentUser.role_v2);
 
     if (!hasPermission) {
-        console.warn("Access Denied", {
+        console.warn("🔐 Access Denied:", {
             path: window.location.pathname,
             role: currentUser.role,
             role_v2: currentUser.role_v2,
-            allowed: allowedRoles
+            allowed: allowedRoles,
+            email: currentUser.email
         });
         // Redirect to 404 to make it obvious
         return <NotFound />;
@@ -45,10 +46,11 @@ function AppRoutes() {
     const { currentUser, ceoMode } = useAuth();
 
     // Common sets
-    const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP'];
+    const ALL_OPS = ['staff', 'manager', 'site_user', 'operator', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP', 'unit_admin', 'viewer', 'site_worker'];
     const ADMIN_ONLY = ['admin', 'hq', 'HQ_ADMIN'];
     const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN'];
-    const REPORTS_VIEW = ['admin', 'report_viewer', 'hq', 'manager', 'HQ_ADMIN', 'LOC_MANAGER', 'READ_ONLY'];
+    const REPORTS_VIEW = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_admin', 'READ_ONLY', 'viewer'];
+    const TREASURY_OPS = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager'];
 
     // EXTENDED KEY for strict context safety
     const contextKey = `${currentUser?.locationId}_${currentUser?.unitId || 'nounit'}_${currentUser?.role_v2}_${ceoMode || 'normal'}`;

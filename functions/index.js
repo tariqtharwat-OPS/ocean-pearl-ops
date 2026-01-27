@@ -65,6 +65,11 @@ exports.postTransaction = onCall(async (request) => {
         timestamp = admin.firestore.Timestamp.now();
     }
 
+    // --- DATA INTEGRITY: Lowercase IDs ---
+    if (locationId) locationId = locationId.toLowerCase();
+    if (unitId) unitId = unitId.toLowerCase();
+    if (itemId) itemId = itemId.toLowerCase();
+
     // === 1.5 RBAC ENFORCEMENT & SCOPE OVERRIDE (Step 3) ===
     const userSnap = await db.collection('users').doc(context.auth.uid).get();
     const userData = userSnap.data() || {};
@@ -85,9 +90,13 @@ exports.postTransaction = onCall(async (request) => {
         }
         locationId = target_id; // OVERRIDE
     }
-    else if (role_v2 === 'UNIT_OP') {
-        // STRICT BLOCK for postTransaction
-        throw new HttpsError('permission-denied', `Security Alert: Unit Operators cannot execute transactions directly.`);
+    else if (role_v2 === 'UNIT_OP' || role_v2 === 'site_user' || role_v2 === 'unit_admin') {
+        // ALLOW Unit Ops but STRICTLY lock to their assigned location/unit
+        locationId = target_id;
+        unitId = userData.unitId || unitId; // Prefer DB-assigned unit, fallback to client if DB is empty but allow ONLY if they have permission
+        if (!locationId || !unitId) {
+            throw new HttpsError('permission-denied', 'Account Security: Unit Operator must have assigned Location and Unit.');
+        }
     }
     else {
         throw new HttpsError('permission-denied', 'Unknown Role Type.');

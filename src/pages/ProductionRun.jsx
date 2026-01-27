@@ -359,17 +359,6 @@ export default function ProductionRun() {
                 await addTransaction(payload);
             }
 
-            await addTransaction({
-                type: 'STOCK_ADJUSTMENT',
-                locationId: currentUser.locationId,
-                unitId: currentUser.unitId,
-                itemId: `RAW_${input.rawItemId}`,
-                quantityKg: -inputKg,
-                description: `Used in Batch ${batchId}`,
-                batchId: batchId
-            });
-
-
 
             toast.success(`Production Run Recorded! Batch: ${batchId}`);
             setIsDirty(false);

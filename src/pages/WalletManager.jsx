@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, doc } from 'firebase/firestore';
 import { LOCATIONS } from '../lib/constants';
 import { ArrowLeft, Plus, Check, X, Clock, AlertTriangle, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -135,10 +135,18 @@ function WalletBalanceIndicator({ currentUser, isHQ }) {
         if (!targetWalletId) return;
 
         try {
-            const unsub = onSnapshot(collection(db, 'site_wallets'), (snap) => {
-                const doc = snap.docs.find(d => d.id === targetWalletId);
-                if (doc) setBalance(doc.data().balance || 0);
-                else setBalance(0); // Doc missing means 0
+            // Force lowercase for location-based wallets, keep 'HQ' as is
+            const safeWalletId = targetWalletId === 'HQ' ? targetWalletId : targetWalletId.toLowerCase();
+
+            const docRef = doc(db, 'site_wallets', safeWalletId);
+            const unsub = onSnapshot(docRef, (doc) => {
+                if (doc.exists()) {
+                    setBalance(doc.data().balance || 0);
+                } else {
+                    setBalance(0); // Doc missing means 0
+                }
+            }, (err) => {
+                console.error("Wallet Snapshot Error:", err);
             });
             return () => unsub();
         } catch (e) {

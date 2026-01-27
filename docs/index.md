@@ -9,8 +9,10 @@ The following documents are the current source of truth for the system state, te
 *   [**Audit Remediation**](active/AUDIT_REMEDIATION_REPORT_2026_01_27.md): Log of critical fixes (C1-C8).
 
 ## ✅ Verification Guides
-*   [**Phase 4 Verification (Current)**](active/PHASE_4_VERIFICATION.md): Test steps for Unsaved Changes and Error Handling (M3, M8).
-*   [**Phase 2 Verification (Archived)**](archive/PHASE_2_VERIFICATION.md): Test steps for Inline Vendors and Context.
+*   [**Phase 6: Operational Simulation**](active/WEEKLY_OPERATIONAL_SIMULATION_REPORT.md): 7-Day performance and UX audit results.
+*   [**Phase 5: Operational Recovery**](active/PHASE_5_VERIFICATION.md): Fixes for core business logic and role access.
+*   [**Phase 4: Hardening**](active/PHASE_4_VERIFICATION.md): Test steps for Unsaved Changes and Error Handling (M3, M8).
+*   [**Phase 2 Verification**](archive/PHASE_2_VERIFICATION.md): Test steps for Inline Vendors and Context.
 
 ## 🏛️ Archives
 *   [**Historical Reports**](archive/): All past validation reports, audit logs, and deprecated docs.
