@@ -13,6 +13,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { useWriteGuard } from '../lib/writeGuard';
 import SelectWithAddNew from '../components/SelectWithAddNew';
+import { useUnsavedChanges } from '../lib/useUnsavedChanges';
 
 export default function Expenses() {
     const { currentUser, ceoMode } = useAuth();
@@ -41,6 +42,15 @@ export default function Expenses() {
         notes: '',
         status: 'PENDING_APPROVAL' // Default for submit
     });
+
+    // M3: Unsaved Guard
+    const [isDirty, setIsDirty] = useState(false);
+    useUnsavedChanges(isDirty);
+
+    const updateField = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        setIsDirty(true);
+    };
 
     // -- PERMISSIONS --
     const isUnitOp = currentUser?.role_v2 === 'UNIT_OP';
@@ -112,6 +122,7 @@ export default function Expenses() {
             status: isUnitOp ? 'PENDING_APPROVAL' : 'APPROVED' // Managers auto-approve their own? Maybe safe to PENDING default always.
             // Let's stick to PENDING by default unless explicitly approved.
         });
+        setIsDirty(false);
         setView('create');
     };
 
@@ -128,6 +139,7 @@ export default function Expenses() {
             notes: ex.notes || '',
             status: ex.status
         });
+        setIsDirty(false);
         setView('edit');
     };
 
@@ -184,6 +196,7 @@ export default function Expenses() {
                 await addDoc(collection(db, 'expenses'), payload);
                 toast.success("Expense Created");
             }
+            setIsDirty(false); // Clear guard
             setView('list');
         } catch (e) {
             console.error(e);
@@ -363,7 +376,7 @@ export default function Expenses() {
                                 {view === 'create' ? <Plus size={20} /> : <Edit2 size={20} />}
                                 {view === 'create' ? 'Record Expense' : 'Edit Expense'}
                             </h2>
-                            <button onClick={() => setView('list')} className="text-slate-400 hover:text-slate-600">
+                            <button onClick={() => { setView('list'); setIsDirty(false); }} className="text-slate-400 hover:text-slate-600">
                                 <X size={24} />
                             </button>
                         </div>
@@ -378,7 +391,7 @@ export default function Expenses() {
                                         type="date"
                                         className="input-field w-full p-2 border rounded"
                                         value={formData.expenseDate}
-                                        onChange={e => setFormData({ ...formData, expenseDate: e.target.value })}
+                                        onChange={e => updateField('expenseDate', e.target.value)}
                                         disabled={isReadOnly}
                                     />
                                 </div>
@@ -390,7 +403,7 @@ export default function Expenses() {
                                         className="input-field w-full p-2 border rounded font-mono text-lg font-bold text-right"
                                         placeholder="0"
                                         value={formData.amount}
-                                        onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                                        onChange={e => updateField('amount', e.target.value)}
                                         disabled={isReadOnly}
                                     />
                                 </div>
@@ -404,8 +417,8 @@ export default function Expenses() {
                                         collectionName="expense_types"
                                         displayField="name"
                                         value={formData.expenseTypeId}
-                                        onChange={(id) => setFormData(prev => ({ ...prev, expenseTypeId: id }))}
-                                        onObjectChange={(item) => setFormData(prev => ({ ...prev, expenseTypeNameSnapshot: item.name }))}
+                                        onChange={(id) => updateField('expenseTypeId', id)}
+                                        onObjectChange={(item) => updateField('expenseTypeNameSnapshot', item.name)}
                                         scope={{ locationId: null }} // Types are global usually
                                         allowAdd={true} // Managers can add
                                     />
@@ -418,8 +431,8 @@ export default function Expenses() {
                                         collectionName="vendors"
                                         displayField="name"
                                         value={formData.vendorId}
-                                        onChange={(id) => setFormData(prev => ({ ...prev, vendorId: id }))}
-                                        onObjectChange={(item) => setFormData(prev => ({ ...prev, vendorNameSnapshot: item.name }))}
+                                        onChange={(id) => updateField('vendorId', id)}
+                                        onObjectChange={(item) => updateField('vendorNameSnapshot', item.name)}
                                         scope={{ locationId: currentUser.locationId }}
                                         filterByLocation={true}
                                         allowAdd={true} // Unit Ops can add
@@ -435,7 +448,7 @@ export default function Expenses() {
                                         <button
                                             key={m}
                                             type="button"
-                                            onClick={() => setFormData({ ...formData, paymentMethod: m })}
+                                            onClick={() => updateField('paymentMethod', m)}
                                             className={`px-3 py-1.5 rounded border text-sm font-bold ${formData.paymentMethod === m ? 'bg-ocean-dial text-white border-ocean-dial' : 'bg-white text-slate-600 border-slate-200'}`}
                                         >
                                             {m}
@@ -451,7 +464,7 @@ export default function Expenses() {
                                     className="w-full p-2 border rounded text-sm"
                                     rows="3"
                                     value={formData.notes}
-                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                    onChange={e => updateField('notes', e.target.value)}
                                     placeholder="Details about the expense..."
                                 />
                             </div>
@@ -473,7 +486,7 @@ export default function Expenses() {
                             ) : <div></div>}
 
                             <div className="flex gap-3">
-                                <button onClick={() => setView('list')} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded">
+                                <button onClick={() => { setView('list'); setIsDirty(false); }} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded">
                                     Cancel
                                 </button>
 
