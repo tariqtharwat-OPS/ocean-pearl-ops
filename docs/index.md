@@ -9,8 +9,8 @@ The following documents are the current source of truth for the system state, te
 *   [**Audit Remediation**](active/AUDIT_REMEDIATION_REPORT_2026_01_27.md): Log of critical fixes (C1-C8).
 
 ## ✅ Verification Guides
-*   [**Phase 2 Verification**](active/PHASE_2_VERIFICATION.md): Test steps for Inline Vendors, Context Safety, and Visibility.
-*   [**Phase 4 Verification**](active/PHASE_4_VERIFICATION.md): Test steps for Unsaved Changes and Error Handling (M3, M8).
+*   [**Phase 4 Verification (Current)**](active/PHASE_4_VERIFICATION.md): Test steps for Unsaved Changes and Error Handling (M3, M8).
+*   [**Phase 2 Verification (Archived)**](archive/PHASE_2_VERIFICATION.md): Test steps for Inline Vendors and Context.
 
 ## 🏛️ Archives
 *   [**Historical Reports**](archive/): All past validation reports, audit logs, and deprecated docs.
