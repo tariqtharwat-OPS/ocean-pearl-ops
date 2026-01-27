@@ -123,37 +123,40 @@ function AppRoutes() {
 }
 
 import { TransactionQueueProvider } from './contexts/TransactionQueueContext';
+import { DirtyFormProvider } from './contexts/DirtyFormContext';
 
 export default function App() {
     return (
         <BrowserRouter>
             <AuthProvider>
                 <TransactionQueueProvider>
-                    <ErrorBoundary><AppRoutes /></ErrorBoundary>
-                    <Toaster
-                        position="top-right"
-                        toastOptions={{
-                            duration: 4000,
-                            style: {
-                                background: '#363636',
-                                color: '#fff',
-                            },
-                            success: {
-                                duration: 3000,
-                                iconTheme: {
-                                    primary: '#10b981',
-                                    secondary: '#fff',
+                    <DirtyFormProvider>
+                        <ErrorBoundary><AppRoutes /></ErrorBoundary>
+                        <Toaster
+                            position="top-right"
+                            toastOptions={{
+                                duration: 4000,
+                                style: {
+                                    background: '#363636',
+                                    color: '#fff',
                                 },
-                            },
-                            error: {
-                                duration: 5000,
-                                iconTheme: {
-                                    primary: '#ef4444',
-                                    secondary: '#fff',
+                                success: {
+                                    duration: 3000,
+                                    iconTheme: {
+                                        primary: '#10b981',
+                                        secondary: '#fff',
+                                    },
                                 },
-                            },
-                        }}
-                    />
+                                error: {
+                                    duration: 5000,
+                                    iconTheme: {
+                                        primary: '#ef4444',
+                                        secondary: '#fff',
+                                    },
+                                },
+                            }}
+                        />
+                    </DirtyFormProvider>
                 </TransactionQueueProvider>
             </AuthProvider>
         </BrowserRouter>

@@ -6,6 +6,7 @@ import { LOCATIONS } from '../lib/constants';
 import { useTransactionQueue } from '../contexts/TransactionQueueContext';
 import { useTranslation } from 'react-i18next';
 import CEOControlPanel from './CEOControlPanel';
+import { useDirtyForm } from '../contexts/DirtyFormContext';
 
 // Lazy load SharkChat
 const SharkChat = React.lazy(() => import('./SharkChat'));
@@ -86,18 +87,28 @@ export default function Layout() {
     // Calculate top padding for main content (adjust for CEO banner)
     const mainTopClass = ceoMode ? 'pt-12' : '';
 
+    // -- DIRTY GUARD --
+    const { isDirty } = useDirtyForm();
+
     // -- CONTEXT SWITCHING LOGIC (C4) --
     const [switching, setSwitching] = React.useState(false);
     const [pendingContext, setPendingContext] = React.useState(null); // { locId, unitId }
 
     const handleContextChange = (locId, unitId) => {
+        // M3: Check Unsaved
+        if (isDirty) {
+            if (!window.confirm("You have unsaved changes. Switching context will discard them. Continue?")) {
+                return;
+            }
+        }
+
         // C4: Confirmation Curtain
         // If changing Loop to Kaimana, risk is high.
         // We pause and ask.
         if (locId === currentUser.locationId && unitId === currentUser.unitId) return;
 
         const locLabel = LOCATIONS[locId?.toLowerCase()]?.label || locId;
-        const confirmMsg = `Switching context to\n\n${locLabel?.toUpperCase()}\n${unitId?.toUpperCase() || ''}\n\nAre you sure?`;
+        // const confirmMsg = `Switching context to\n\n${locLabel?.toUpperCase()}\n${unitId?.toUpperCase() || ''}\n\nAre you sure?`;
 
         // Use native check for speed, or custom modal?
         // User requested "Context Safety". A distinct confirmation is key.
@@ -116,6 +127,16 @@ export default function Layout() {
             setPendingContext(null);
             // Optional: visual flash or toast here
         }, 800);
+    };
+
+    const handleNavClick = (e, to) => {
+        if (isDirty && activeRoute !== to) {
+            if (!window.confirm("You have unsaved changes. Leaving this page will discard them. Continue?")) {
+                e.preventDefault();
+                return;
+            }
+        }
+        setActiveRoute(to);
     };
 
     return (
@@ -268,7 +289,7 @@ export default function Layout() {
                     <NavLink
                         to="/"
                         className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${activeRoute === '/' ? 'text-secondary' : 'text-gray-500'}`}
-                        onClick={() => setActiveRoute('/')}
+                        onClick={(e) => handleNavClick(e, '/')}
                     >
                         <Menu size={20} />
                         <span className="text-[10px] font-medium">{t('home')}</span>
@@ -281,7 +302,7 @@ export default function Layout() {
                                 key={item.to}
                                 to={item.to}
                                 className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${isActive ? 'text-secondary' : 'text-gray-500'}`}
-                                onClick={() => setActiveRoute(item.to)}
+                                onClick={(e) => handleNavClick(e, item.to)}
                             >
                                 <item.icon size={20} />
                                 <span className="text-[10px] font-medium">{item.label}</span>
