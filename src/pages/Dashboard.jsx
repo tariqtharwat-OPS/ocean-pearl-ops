@@ -74,7 +74,14 @@ function RecentTransactions({ locationId, unitId }) {
                                     {(t.totalAmount || t.amount || 0).toLocaleString()}
                                 </td>
                                 <td className="p-3 text-right text-gray-500 text-xs">
-                                    {new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {(() => {
+                                        try {
+                                            const ts = t.timestamp?.toDate ? t.timestamp.toDate() : new Date(t.timestamp);
+                                            return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                        } catch {
+                                            return '--:--';
+                                        }
+                                    })()}
                                 </td>
                             </tr>
                         ))}

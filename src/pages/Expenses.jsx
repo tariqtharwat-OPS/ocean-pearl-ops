@@ -147,9 +147,16 @@ export default function Expenses() {
         e.preventDefault();
 
         // Validation
-        if (!formData.amount || parseFloat(formData.amount) <= 0) return toast.error("Invalid Amount");
+        if (!formData.amount || parseFloat(formData.amount) <= 0) return toast.error("Amount must be greater than 0");
         if (!formData.expenseTypeId) return toast.error("Expense Type is required");
-        if (!formData.vendorId && !formData.vendorNameSnapshot) return toast.error("Vendor is required");
+        if (!formData.notes || formData.notes.trim() === '') return toast.error("Notes/Description is required");
+
+        // Vendor Fallback
+        let effectiveVendorId = formData.vendorId;
+        if (!effectiveVendorId || effectiveVendorId.trim() === '') {
+            effectiveVendorId = 'VENDOR_CASH';
+            toast.info('Using default vendor: VENDOR_CASH', { duration: 2000 });
+        }
 
         const actionName = selectedExpense
             ? `Update Expense ${selectedExpense.id}`
@@ -161,10 +168,11 @@ export default function Expenses() {
         try {
             const payload = {
                 ...formData,
+                vendorId: effectiveVendorId,
                 amount: parseFloat(formData.amount),
                 locationId: currentUser.locationId,
                 unitId: currentUser.unitId || null,
-                updatedAt: new Date().toISOString(),
+                updatedAt: serverTimestamp(),
                 updatedBy: currentUser.uid
             };
 
@@ -173,14 +181,14 @@ export default function Expenses() {
             else if (actionType === 'APPROVE') {
                 payload.status = 'APPROVED';
                 payload.approvedBy = currentUser.uid;
-                payload.approvedAt = new Date().toISOString();
+                payload.approvedAt = serverTimestamp();
             } else if (actionType === 'SUBMIT') {
                 // Is Manager? They can auto-approve if they create it? 
                 // Let's assume Managers creating expenses are auto-approved for simplicity unless they want Draft.
                 if ((isManager || isHQ) && !selectedExpense) {
                     payload.status = 'APPROVED';
                     payload.approvedBy = currentUser.uid;
-                    payload.approvedAt = new Date().toISOString();
+                    payload.approvedAt = serverTimestamp();
                 } else {
                     payload.status = 'PENDING_APPROVAL';
                 }
@@ -190,7 +198,7 @@ export default function Expenses() {
                 await updateDoc(doc(db, 'expenses', selectedExpense.id), payload);
                 toast.success("Expense Updated");
             } else {
-                payload.createdAt = new Date().toISOString();
+                payload.createdAt = serverTimestamp();
                 payload.createdBy = currentUser.uid;
                 payload.createdByName = currentUser.displayName || currentUser.email;
                 await addDoc(collection(db, 'expenses'), payload);
@@ -213,7 +221,7 @@ export default function Expenses() {
             await updateDoc(doc(db, 'expenses', ex.id), {
                 status: newStatus,
                 [action === 'APPROVE' ? 'approvedBy' : 'rejectedBy']: currentUser.uid,
-                [action === 'APPROVE' ? 'approvedAt' : 'rejectedAt']: new Date().toISOString()
+                [action === 'APPROVE' ? 'approvedAt' : 'rejectedAt']: serverTimestamp()
             });
             toast.success(`Expense ${newStatus}`);
         } catch (e) {

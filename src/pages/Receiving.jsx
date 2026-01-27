@@ -118,14 +118,16 @@ export default function Receiving() {
 
     // -- SUBMIT --
     const handleSubmit = async () => {
-        if (!header.supplierId) {
-            toast.error(t('alert_select_supplier'));
-            return;
-        }
-
         // WRITE GUARD
         const canProceed = await guardWrite(authContext, `Receive Invoice: ${batchId}`);
         if (!canProceed) return;
+
+        // SUPPLIER FALLBACK: Never block on missing supplier
+        let effectiveSupplierId = header.supplierId;
+        if (!effectiveSupplierId || effectiveSupplierId.trim() === '') {
+            effectiveSupplierId = 'FISHERMAN_CASH';
+            toast.info('Using default supplier: FISHERMAN_CASH', { duration: 3000 });
+        }
 
         // Validation: No Negatives
         const hasNegatives = rows.some(r => {
@@ -163,7 +165,7 @@ export default function Receiving() {
                     type: 'PURCHASE_RECEIVE',
                     locationId: currentUser.locationId,
                     unitId: targetUnit,
-                    supplierId: header.supplierId,
+                    supplierId: effectiveSupplierId,
                     paymentMethod: header.terms,
                     paymentStatus: header.terms === 'cash' ? 'paid' : 'pending',
                     timestamp: new Date(header.date).toISOString(), // Visual Only

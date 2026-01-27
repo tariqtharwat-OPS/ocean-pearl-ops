@@ -118,6 +118,20 @@ exports.postTransaction = onCall(async (request) => {
     let walletImpact = 0;
     let stockGrade = gradeId || "NA"; // Spec Rule: Default to NA
 
+    // === CRITICAL QUANTITY VALIDATION ===
+    // Reject any transaction that impacts stock without valid kg
+    const stockTypes = ['PURCHASE_RECEIVE', 'COLD_STORAGE_IN', 'SALE_INVOICE', 'LOCAL_SALE', 'STOCK_ADJUSTMENT'];
+    if (stockTypes.includes(type)) {
+        if (quantityKg === undefined || quantityKg === null || quantityKg === '') {
+            throw new HttpsError('invalid-argument', 'Quantity (kg) is required for this transaction type.');
+        }
+        const qty = parseFloat(quantityKg);
+        if (isNaN(qty) || qty <= 0) {
+            throw new HttpsError('invalid-argument', `Invalid quantity: ${quantityKg}. Must be a positive number.`);
+        }
+        quantityKg = qty; // Normalize
+    }
+
     try {
         switch (type) {
             case 'PURCHASE_RECEIVE':
