@@ -4,10 +4,9 @@
 **Production Ready** (Audit 2026-01-27 Passed)
 
 ## 📂 Key Documentation
-*   [**Credentials**](USER_CREDENTIALS.md): Test accounts for all roles.
-*   [**Technical Status**](TECHNICAL_STATUS_REPORT_2026_01.md): System architecture and health.
-*   [**Optimization Plan**](OPTIMIZATION_PLAN.md): Current roadmap for hardening (Jan-Feb 2026).
-*   [**Audit Remediation**](AUDIT_REMEDIATION_REPORT_2026_01_27.md): Fixes for Critical Blockers.
+*   [**Documentation Index**](docs/index.md): Start here for all documentation.
+*   [**Credentials**](docs/active/USER_CREDENTIALS.md): Test accounts for all roles.
+*   [**Technical Status**](docs/active/TECHNICAL_STATUS_REPORT_2026_01.md): System architecture and health.
 
 ## 🛠️ Developer Setup
 1.  **Install**: `npm install`
