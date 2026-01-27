@@ -7,6 +7,8 @@ import { ArrowLeft, Plus, Trash2, Gauge, AlertTriangle, CheckCircle, Save, Print
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useWriteGuard } from '../lib/writeGuard';
+import { toast } from 'react-hot-toast';
+import { useUnsavedChanges } from '../lib/useUnsavedChanges';
 // Inline all constants to completely avoid circular dependency issues
 const GRADES = ['A', 'B', 'C', 'Reject', 'Mix'];
 
@@ -137,7 +139,12 @@ export default function ProductionRun() {
     });
     const [rawStock, setRawStock] = useState([]);
     const [rawMeta, setRawMeta] = useState({}); // { ID: { category, name, ... } }
+
     const [finishedProducts, setFinishedProducts] = useState([]); // All FPs
+
+    // M3
+    const [isDirty, setIsDirty] = useState(false);
+    useUnsavedChanges(isDirty);
 
     // WRITE GUARD
     const authContext = useAuth();
@@ -235,16 +242,19 @@ export default function ProductionRun() {
         } else {
             setInput(prev => ({ ...prev, [k]: v }));
         }
+        setIsDirty(true);
     };
 
     const updateOutput = (idx, field, val) => {
         const next = [...outputs];
         next[idx][field] = val;
+
         setOutputs(next);
+        setIsDirty(true);
     };
 
-    const addRow = () => setOutputs([...outputs, { ...DEFAULT_OUTPUT, id: Date.now() }]);
-    const removeRow = (idx) => setOutputs(outputs.filter((_, i) => i !== idx));
+    const addRow = () => { setOutputs([...outputs, { ...DEFAULT_OUTPUT, id: Date.now() }]); setIsDirty(true); };
+    const removeRow = (idx) => { setOutputs(outputs.filter((_, i) => i !== idx)); setIsDirty(true); };
 
     // -- CALCULATIONS --
     const totalOutputKg = outputs.reduce((acc, r) => acc + (parseFloat(r.quantityKg) || 0), 0) + (parseFloat(waste.quantityKg) || 0);
@@ -275,21 +285,21 @@ export default function ProductionRun() {
         if (!canProceed) return;
 
         // 1. Strict Validation (Negatives)
-        if (inputKg <= 0) return alert("Input Weight must be positive.");
+        if (inputKg <= 0) return toast.error("Input Weight must be positive.");
 
         const hasNegatives = outputs.some(r => {
             const q = parseFloat(r.quantityKg);
             const b = parseFloat(r.boxCount);
             return (r.quantityKg !== '' && q <= 0) || (r.boxCount !== '' && b < 0);
         });
-        if (hasNegatives) return alert("CRITICAL: Output Quantity must be > 0 and Box Count cannot be negative.");
+        if (hasNegatives) return toast.error("CRITICAL: Output Quantity must be > 0 and Box Count cannot be negative.");
 
         if (!input.rawStockId) {
-            alert("Please select Input Stock.");
+            toast.error("Please select Input Stock.");
             return;
         }
         if (totalOutputKg <= 0) {
-            alert("Please add at least one output.");
+            toast.error("Please add at least one output.");
             return;
         }
 
@@ -359,12 +369,15 @@ export default function ProductionRun() {
                 batchId: batchId
             });
 
-            alert(`Production Run Recorded! Batch: ${batchId}`);
+
+
+            toast.success(`Production Run Recorded! Batch: ${batchId}`);
+            setIsDirty(false);
             navigate('/');
 
         } catch (e) {
             console.error(e);
-            alert(e.message);
+            toast.error(e.message);
         } finally {
             setSubmitting(false);
         }
@@ -398,7 +411,7 @@ export default function ProductionRun() {
                 <div className="max-w-5xl mx-auto px-4 py-3">
                     <div className="flex justify-between items-start mb-2">
                         <div>
-                            <button onClick={() => navigate('/')} className="text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-1 text-sm">
+                            <button onClick={() => { setIsDirty(false); navigate('/'); }} className="text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-1 text-sm">
                                 <ArrowLeft size={16} /> Cancel
                             </button>
                             <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -579,7 +592,8 @@ export default function ProductionRun() {
                         <select
                             className="w-full p-2 border border-orange-200 rounded text-sm print:hidden"
                             value={waste.description}
-                            onChange={e => setWaste({ ...waste, description: e.target.value })}
+
+                            onChange={e => { setWaste({ ...waste, description: e.target.value }); setIsDirty(true); }}
                         >
                             <option value="General Waste">General Waste (No Value)</option>
                             <option value="Heads">Heads</option>
@@ -594,7 +608,8 @@ export default function ProductionRun() {
                             type="number"
                             className="w-full p-2 border border-orange-200 rounded text-sm text-right font-bold print:hidden"
                             value={waste.quantityKg}
-                            onChange={e => setWaste({ ...waste, quantityKg: e.target.value })}
+
+                            onChange={e => { setWaste({ ...waste, quantityKg: e.target.value }); setIsDirty(true); }}
                         />
                         <div className="hidden print:block font-mono">{waste.quantityKg} kg</div>
                     </div>

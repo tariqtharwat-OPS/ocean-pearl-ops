@@ -12,6 +12,8 @@ import OperateAsConfirmation from '../components/OperateAsConfirmation';
 import { httpsCallable } from 'firebase/functions';
 import { getFunctionsForRegion, functions } from '../lib/firebase';
 import { getFunctionRegion } from '../lib/functionLocator';
+import { toast } from 'react-hot-toast';
+import { useUnsavedChanges } from '../lib/useUnsavedChanges';
 
 export default function WalletManager() {
     const navigate = useNavigate();
@@ -286,8 +288,9 @@ function RequestCard({ req, currentUser, isManager, isHQ, functions }) {
             const fn = httpsCallable(functions, endpoint);
             await fn({ requestId: req.id, reason: action === 'REJECT' ? 'Manager Rejected' : null });
             // UI updates via snapshot
+            // UI updates via snapshot
         } catch (e) {
-            alert(`Error: ${e.message}`);
+            toast.error(`Error: ${e.message}`);
         } finally {
             setProcessing(false);
         }
@@ -366,6 +369,8 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
     const [amount, setAmount] = useState('');
     const [desc, setDesc] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
+    useUnsavedChanges(isDirty);
 
     // Permissions: Can this user request FUNDING?
     const canFunding = isManager; // Only managers can request from HQ
@@ -403,11 +408,12 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
             });
 
             // SUCCESS FEEDBACK
-            alert("✅ Request Created Successfully! It is now PENDING APPROVAL.");
+            toast.success("✅ Request Created Successfully!");
+            setIsDirty(false);
             onClose();
         } catch (e) {
             console.error("Request Creation Error:", e);
-            alert(`❌ Error creating request: ${e.message}`);
+            toast.error(`❌ Error creating request: ${e.message}`);
         } finally {
             setSubmitting(false);
         }
@@ -452,7 +458,7 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
                             type="number"
                             className="input-field text-lg font-bold"
                             value={amount}
-                            onChange={e => setAmount(e.target.value)}
+                            onChange={e => { setAmount(e.target.value); setIsDirty(true); }}
                             required
                             min="100"
                         />
@@ -463,14 +469,14 @@ function CreateRequestForm({ onClose, currentUser, isManager, functions }) {
                         <textarea
                             className="input-field"
                             value={desc}
-                            onChange={e => setDesc(e.target.value)}
+                            onChange={e => { setDesc(e.target.value); setIsDirty(true); }}
                             required
                             placeholder={type === 'EXPENSE' ? "e.g. Bought Ice, Fuel Repair" : "e.g. Weekly Operations Budget"}
                         />
                     </div>
 
                     <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={onClose} className="flex-1 btn bg-slate-100 text-slate-600">Cancel</button>
+                        <button type="button" onClick={() => { setIsDirty(false); onClose(); }} className="flex-1 btn bg-slate-100 text-slate-600">Cancel</button>
                         <button type="submit" disabled={submitting} className="flex-1 btn btn-primary">
                             {submitting ? 'Creating...' : 'Submit Request'}
                         </button>
@@ -487,6 +493,9 @@ function SendFundsForm({ onClose, functions }) {
     const [amount, setAmount] = useState('');
     const [desc, setDesc] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    // M3
+    const [isDirty, setIsDirty] = useState(false);
+    useUnsavedChanges(isDirty);
 
     const authContext = useAuth();
     const { guardWrite } = useWriteGuard(authContext);
@@ -517,12 +526,14 @@ function SendFundsForm({ onClose, functions }) {
                 description: desc,
                 transferDirection: 'IN', // IN to Location (HQ -> Loc)
                 paymentMethod: 'cash'
+                paymentMethod: 'cash'
             });
-            alert("Funds Transferred Successfully!");
+            toast.success("Funds Transferred Successfully!");
+            setIsDirty(false);
             onClose();
         } catch (e) {
             console.error(e);
-            alert(`Transfer Failed: ${e.message}`);
+            toast.error(`Transfer Failed: ${e.message}`);
         } finally {
             setSubmitting(false);
         }
@@ -535,7 +546,7 @@ function SendFundsForm({ onClose, functions }) {
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                         <span>💸</span> Send Capital
                     </h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                    <button onClick={() => { setIsDirty(false); onClose(); }} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -549,7 +560,7 @@ function SendFundsForm({ onClose, functions }) {
                         <select
                             className="input-field"
                             value={targetLocation}
-                            onChange={e => setTargetLocation(e.target.value)}
+                            onChange={e => { setTargetLocation(e.target.value); setIsDirty(true); }}
                             required
                         >
                             <option value="">Select Location...</option>
@@ -565,7 +576,7 @@ function SendFundsForm({ onClose, functions }) {
                             type="number"
                             className="input-field text-lg font-bold text-emerald-700"
                             value={amount}
-                            onChange={e => setAmount(e.target.value)}
+                            onChange={e => { setAmount(e.target.value); setIsDirty(true); }}
                             required
                             min="100000"
                             placeholder="e.g. 500,000,000"
@@ -577,7 +588,7 @@ function SendFundsForm({ onClose, functions }) {
                         <textarea
                             className="input-field"
                             value={desc}
-                            onChange={e => setDesc(e.target.value)}
+                            onChange={e => { setDesc(e.target.value); setIsDirty(true); }}
                             required
                             placeholder="e.g. Q1 Operational Capital Injection"
                         />

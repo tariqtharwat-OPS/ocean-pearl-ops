@@ -2,22 +2,15 @@
 **Date:** Jan 27, 2026
 **Scope:** Hardening (M3 Unsaved Changes, M8 API Error Handling) and Repo Hygiene.
 
+
 ## ✅ M3: Unsaved Changes Guard
-1.  **Preparation**: Log in as Unit Operator. Go to **Receiving** OR **Expenses**.
-2.  **Make Dirty**: Add a line item, type a note, or change a quantity. Do NOT save.
+1.  **Preparation**: Log in as Unit Operator. Go to **Receiving**, **Expenses**, **Production Run**, or **Wallet Manager**.
+2.  **Make Dirty**:
+    *   **Receiving**: Add line item.
+    *   **Expenses**: Type in notes or amount.
+    *   **Production**: Select Input Stock or add Output line.
+    *   **Wallet**: Open "New Request" or "Send Funds" and type description.
 3.  **Test 1 (Browser Refresh)**:
-    *   Press F5 or click Refresh.
-    *   **Verify**: Browser shows standard "Leave site? Changes you made may not be saved" dialog.
-    *   Action: Click Cancel. **Verify**: You stay on page. Data remains.
-4.  **Test 2 (Context Switch)**:
-    *   (As Admin/Manager) Change Location in Header dropdown.
-    *   **Verify**: Custom Modal "You have unsaved changes. Switching context will discard them. Continue?".
-    *   Action: Click Cancel. **Verify**: Context does NOT switch.
-5.  **Test 3 (In-App Navigation)**:
-    *   Click "Home" or "Wallet" in sidebar.
-    *   **Verify**: Custom Modal "You have unsaved changes...".
-    *   Action: Click Cancel. **Verify**: Navigation blocked.
-6.  **Test 4 (Submission)**:
     *   Click "Save/Submit". 
     *   **Verify**: Success toast appears. 
     *   **Action**: Refresh page immediately after.
