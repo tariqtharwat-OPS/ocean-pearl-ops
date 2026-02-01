@@ -29,6 +29,14 @@ export function AuthProvider({ children }) {
                             userData.unitId = userData.unitId.id || '';
                         }
 
+                        // BACKFILL: Ensure role_v2 exists from legacy role if missing
+                        if (!userData.role_v2 && userData.role) {
+                            const r = userData.role;
+                            if (r === 'admin') userData.role_v2 = 'HQ_ADMIN';
+                            else if (r === 'manager' || r === 'location_admin') userData.role_v2 = 'LOC_MANAGER';
+                            else if (r === 'operator' || r === 'site_user' || r === 'unit_admin') userData.role_v2 = 'UNIT_OP';
+                        }
+
                         const fullUser = { uid: user.uid, email: user.email, ...userData };
                         setCurrentUser(fullUser);
                         setOriginalUser(fullUser); // Store original identity

@@ -79,6 +79,14 @@ exports.seedRealisticData = onRequest({ region: "asia-southeast1", timeoutSecond
         }
     }
 
+    // HQ Wallet
+    batch.set(db.doc('site_wallets/HQ'), {
+        balance: 1000000000, // 1 Milyar start
+        locationId: 'jakarta',
+        type: 'HQ',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
     // Items
     const items = [
         { id: 'kakap_merah', name: 'Red Snapper (Whole)', uom: 'kg' },

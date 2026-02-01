@@ -53,9 +53,10 @@ export default function Expenses() {
     };
 
     // -- PERMISSIONS --
-    const isUnitOp = currentUser?.role_v2 === 'UNIT_OP';
-    const isManager = currentUser?.role_v2 === 'LOC_MANAGER';
-    const isHQ = currentUser?.role_v2 === 'HQ_ADMIN' || currentUser?.role_v2 === 'GLOBAL_ADMIN';
+    const roleV2 = (currentUser?.role_v2 || '').toUpperCase();
+    const isUnitOp = roleV2 === 'UNIT_OP' || roleV2 === 'UNIT_OPERATOR';
+    const isManager = roleV2 === 'LOC_MANAGER' || roleV2 === 'LOCATION_MANAGER';
+    const isHQ = roleV2 === 'HQ_ADMIN' || roleV2 === 'GLOBAL_ADMIN';
     const canApprove = isManager || isHQ;
 
     // -- EFFECT: FETCH EXPENSES --
@@ -100,8 +101,8 @@ export default function Expenses() {
             return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
         }
 
-        // Filter by Unit if UnitOp or specific unit selected
-        if (currentUser.unitId && ex.unitId && ex.unitId !== currentUser.unitId) return false;
+        // Filter by Unit if UnitOp. Managers/HQ see all in location.
+        if (isUnitOp && currentUser.unitId && ex.unitId && ex.unitId !== currentUser.unitId) return false;
 
         return true;
     });
@@ -155,7 +156,7 @@ export default function Expenses() {
         let effectiveVendorId = formData.vendorId;
         if (!effectiveVendorId || effectiveVendorId.trim() === '') {
             effectiveVendorId = 'VENDOR_CASH';
-            toast.info('Using default vendor: VENDOR_CASH', { duration: 2000 });
+            toast('Using default vendor: VENDOR_CASH', { duration: 2000, icon: 'ℹ️' });
         }
 
         const actionName = selectedExpense
@@ -359,9 +360,21 @@ export default function Expenses() {
                                                     {isReadOnly ? <Eye size={16} /> : <Edit2 size={16} />}
                                                 </button>
                                                 {canApprove && item.status === 'PENDING_APPROVAL' && (
-                                                    <div className="flex gap-1">
-                                                        <button onClick={() => handleApproveReject(item, 'APPROVE')} className="text-emerald-500 hover:text-emerald-700 p-1"><Check size={16} /></button>
-                                                        <button onClick={() => handleApproveReject(item, 'REJECT')} className="text-red-500 hover:text-red-700 p-1"><X size={16} /></button>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleApproveReject(item, 'APPROVE')}
+                                                            className="flex items-center gap-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 py-1 rounded text-[10px] font-bold border border-emerald-200"
+                                                            title="Approve Expense"
+                                                        >
+                                                            <Check size={12} /> Approve
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleApproveReject(item, 'REJECT')}
+                                                            className="flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1 rounded text-[10px] font-bold border border-red-200"
+                                                            title="Reject Expense"
+                                                        >
+                                                            <X size={12} /> Reject
+                                                        </button>
                                                     </div>
                                                 )}
                                             </td>

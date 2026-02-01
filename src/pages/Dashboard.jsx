@@ -20,20 +20,13 @@ function RecentTransactions({ locationId, unitId }) {
     useEffect(() => {
         const load = async () => {
             try {
-                // Determine scope
-                let q = query(
-                    collection(db, 'transactions'),
-                    // where('locationId', '==', locationId), // Index Requirement
-                    orderBy('timestamp', 'desc'),
-                    limit(10)
-                );
-
-                // If we want strict filtering, we need composite indexes.
-                // For V1.5, client-side filtering 50 items is safer without indexes.
-                // Or just filter by unit if index exists.
-                // Let's assume global ordering for now to avoid index blocks, and filter in UI.
+                let q;
                 if (unitId) {
-                    q = query(collection(db, 'transactions'), where('unitId', '==', unitId), orderBy('timestamp', 'desc'), limit(10));
+                    q = query(collection(db, 'transactions'), where('unitId', '==', unitId), orderBy('timestamp', 'desc'), limit(15));
+                } else if (locationId && locationId !== 'jakarta') {
+                    q = query(collection(db, 'transactions'), where('locationId', '==', locationId), orderBy('timestamp', 'desc'), limit(15));
+                } else {
+                    q = query(collection(db, 'transactions'), orderBy('timestamp', 'desc'), limit(15));
                 }
 
                 const snap = await getDocs(q);
@@ -42,7 +35,7 @@ function RecentTransactions({ locationId, unitId }) {
                 console.error("Txn Load Error", e);
             }
         };
-        if (unitId || locationId) load();
+        load();
     }, [locationId, unitId]);
 
     return (
@@ -164,9 +157,10 @@ function UnitWorkerView({ navigate, currentUser }) {
         const loadKPIs = async () => {
             if (!currentUser.locationId) return;
             try {
-                // Wallet
-                const wSnap = await getDocs(collection(db, `locations/${currentUser.locationId}/units/${currentUser.unitId}/wallet`));
-                if (!wSnap.empty) setWalletRef(wSnap.docs[0].data().balance || 0);
+                // Wallet - V2 uses centralized site_wallets
+                const { doc, getDoc } = await import('firebase/firestore');
+                const wDoc = await getDoc(doc(db, 'site_wallets', currentUser.unitId));
+                if (wDoc.exists()) setWalletRef(wDoc.data().balance || 0);
 
                 // Stock (Sum of RAW items)
                 const sSnap = await getDocs(collection(db, `locations/${currentUser.locationId}/units/${currentUser.unitId}/stock`));
@@ -241,16 +235,21 @@ export default function Dashboard() {
     // ROUTING LOGIC
     if (!currentUser) return <div>Loading...</div>;
 
-    // Level 3
-    if (currentUser.role === 'admin') {
+    // Level 3 (HQ Admin)
+    if (currentUser.role === 'admin' || currentUser.role_v2 === 'HQ_ADMIN') {
+        // If they have a location context selected, show the Location View (Manager)
+        if (currentUser.locationId) {
+            return <LocationManagerView currentUser={currentUser} />;
+        }
         return <AdminGlobalView />;
     }
 
-    // Level 2
-    if (currentUser.role === 'manager' || currentUser.role === 'location_admin' || currentUser.role_v2 === 'location_manager' || currentUser.role === 'location_manager') {
+    // Level 2 (Manager)
+    const roleV2 = (currentUser.role_v2 || '').toUpperCase();
+    if (currentUser.role === 'manager' || currentUser.role === 'location_admin' || roleV2 === 'LOC_MANAGER' || roleV2 === 'LOCATION_MANAGER') {
         return <LocationManagerView currentUser={currentUser} />;
     }
 
-    // Level 1 (Default)
+    // Level 1 (Default: Unit Op)
     return <UnitWorkerView navigate={navigate} currentUser={currentUser} />;
 }

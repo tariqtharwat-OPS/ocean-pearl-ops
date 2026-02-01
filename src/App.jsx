@@ -7,11 +7,12 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Receiving from './pages/Receiving';
 import Expenses from './pages/Expenses';
-const ProductionRun = React.lazy(() => import('./pages/ProductionRun'));
+import ProductionRun from './pages/ProductionRun';
 import SalesInvoice from './pages/SalesInvoice';
 import AdminPanel from './pages/Admin/AdminPanel';
 import ReportsViewer from './pages/Reports/ReportsViewer';
 import WalletManager from './pages/WalletManager';
+const SharkPage = React.lazy(() => import('./pages/SharkPage'));
 import DashboardV1 from './pages/Admin/DashboardV1';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -91,8 +92,17 @@ function AppRoutes() {
 
                 {/* HQ / Sales Only */}
                 <Route path="/sales" element={
-                    <PrivateRoute allowedRoles={SALES_ONLY}>
+                    <PrivateRoute allowedRoles={[...SALES_ONLY, ...ALL_OPS]}>
                         <SalesInvoice key={contextKey} />
+                    </PrivateRoute>
+                } />
+
+                {/* Shark AI Landing (New) */}
+                <Route path="/shark" element={
+                    <PrivateRoute allowedRoles={ALL_OPS}>
+                        <React.Suspense fallback={<div>Loading...</div>}>
+                            <SharkPage />
+                        </React.Suspense>
                     </PrivateRoute>
                 } />
 

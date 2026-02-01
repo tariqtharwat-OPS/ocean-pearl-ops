@@ -27,9 +27,10 @@ export default function WalletManager() {
     }, [currentUser?.locationId]);
 
     // Permissions
-    const isHQ = currentUser?.role_v2 === 'HQ_ADMIN';
-    const isManager = currentUser?.role_v2 === 'LOC_MANAGER' || isHQ;
-    const isUnit = currentUser?.role_v2 === 'UNIT_OP';
+    const roleV2 = (currentUser?.role_v2 || '').toUpperCase();
+    const isHQ = roleV2 === 'HQ_ADMIN';
+    const isManager = roleV2 === 'LOC_MANAGER' || roleV2 === 'LOCATION_MANAGER' || isHQ;
+    const isUnit = roleV2 === 'UNIT_OP' || roleV2 === 'UNIT_OPERATOR';
 
     // If Unit Op, force tab to 'requests' and hide others
     useEffect(() => {
@@ -123,13 +124,21 @@ function WalletBalanceIndicator({ currentUser, isHQ }) {
     // If isHQ, we use checked locationId (from context switch) OR 'HQ' if null.
     // If Manager, we use locationId (already set).
     const isContextSwitching = isHQ && currentUser.locationId && currentUser.locationId !== 'HQ';
-    const targetWalletId = isContextSwitching ? currentUser.locationId : (isHQ ? 'HQ' : currentUser.locationId);
+
+    // In V2, we prefer unitId for a specific site wallet, or locationId for the location's operational cash. 
+    // If context switching, we pick the unitId if available, fallback to locationId.
+    const targetWalletId = isContextSwitching
+        ? (currentUser.unitId || currentUser.locationId)
+        : (isHQ ? 'HQ' : (currentUser.unitId || currentUser.locationId));
 
     // Label Logic
     let label = 'Unknown Wallet';
-    if (isHQ && !isContextSwitching) label = 'HQ Treasury'; // Pure HQ
-    else if (isContextSwitching) label = `Location Wallet (${currentUser.locationId.toUpperCase()})`; // HQ Viewing Loc
-    else label = 'Location Wallet'; // Manager Viewing Loc
+    if (isHQ && !isContextSwitching) label = 'HQ Treasury';
+    else if (isContextSwitching) {
+        const targetLabel = currentUser.unitId ? currentUser.unitId.toUpperCase() : currentUser.locationId.toUpperCase();
+        label = `Context Wallet (${targetLabel})`;
+    }
+    else label = 'Site Wallet';
 
     useEffect(() => {
         if (!targetWalletId) return;

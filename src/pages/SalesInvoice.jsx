@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { GRADES } from '../lib/constants';
+import { GRADES, LOCATIONS } from '../lib/constants';
+import { useTransactionQueue } from '../contexts/TransactionQueueContext';
+import { useWriteGuard } from '../lib/writeGuard';
+import { toast } from 'react-hot-toast';
 
 export default function SalesInvoice() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const authContext = useAuth();
+    const { currentUser } = authContext;
+    const { addTransaction } = useTransactionQueue();
+    const { guardWrite } = useWriteGuard(authContext);
 
     // Data State
     const [locations, setLocations] = useState([]);
@@ -17,31 +23,49 @@ export default function SalesInvoice() {
 
     // Form State
     const [formData, setFormData] = useState({
-        buyer: '',
-        sourceLocationId: currentUser?.locationId || '', // Default to user's location if available
+        buyerId: '',
+        buyerName: '',
+        sourceLocationId: currentUser?.locationId || '',
         sourceUnitId: currentUser?.unitId || '',
         itemId: '',
         gradeId: '',
         quantityKg: '',
-        pricePerKg: ''
+        pricePerKg: '',
+        paymentType: 'SALE_INVOICE' // Default to Receivable
     });
 
     const [loading, setLoading] = useState(false);
-
-    const [partners, setPartners] = useState([]); // Store buyers/agents
+    const [partners, setPartners] = useState([]);
 
     // Fetch Data
     useEffect(() => {
         const fetchResources = async () => {
             try {
-                const [locSnap, prodSnap, partSnap] = await Promise.all([
+                const [locSnap, fpSnap, rmSnap, partSnap] = await Promise.all([
                     getDocs(collection(db, 'locations')),
                     getDocs(collection(db, 'finished_products')),
+                    getDocs(collection(db, 'raw_materials')),
                     getDocs(query(collection(db, 'partners'), where('type', 'in', ['buyer', 'sell_agent'])))
                 ]);
 
                 setLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-                setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.active));
+
+                console.log("SALES: Fetched", {
+                    locs: locSnap.size,
+                    fps: fpSnap.size,
+                    rms: rmSnap.size,
+                    partners: partSnap.size
+                });
+
+                console.log("SALES: RM count:", rmSnap.size);
+
+                // Combine FP and RM for selection (since production might use RM ids for stock)
+                const items = [
+                    ...fpSnap.docs.map(d => ({ id: d.id, name: d.data().name || d.data().nameEn || d.id, category: 'Finished Product' })),
+                    ...rmSnap.docs.map(d => ({ id: d.id, name: d.data().name || d.id, category: 'Raw Material' }))
+                ];
+                console.log("SALES: Total items mapped", items.length);
+                setProducts(items.filter(p => p.name));
                 setPartners(partSnap.docs.map(d => ({ id: d.id, ...d.data() })));
             } catch (error) {
                 console.error("Error fetching resources:", error);
@@ -61,33 +85,36 @@ export default function SalesInvoice() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!formData.sourceLocationId) return alert("Source Location is required");
-        if (!formData.gradeId) return alert("Grade is REQUIRED for Sales.");
+        const canProceed = await guardWrite(authContext, `Sale Invoice: ${formData.itemId}`);
+        if (!canProceed) return;
+
+        if (!formData.sourceLocationId) return toast.error("Source Location is required");
+        if (!formData.gradeId) return toast.error("Grade is REQUIRED for Sales.");
 
         setLoading(true);
 
         try {
             const payload = {
-                type: 'SALE_INVOICE',
+                type: formData.paymentType,
                 locationId: formData.sourceLocationId,
                 unitId: formData.sourceUnitId || 'generic',
-                buyer: formData.buyer,
+                buyerId: formData.buyerId,
+                buyerName: formData.buyerName,
                 itemId: formData.itemId,
                 gradeId: formData.gradeId,
                 quantityKg: parseFloat(formData.quantityKg),
                 pricePerKg: parseFloat(formData.pricePerKg),
-                totalAmount: calculateTotal(),
-                timestamp: new Date().toISOString(),
-                createdBy: currentUser.uid
+                amount: calculateTotal(),
+                description: `Sale to ${formData.buyerName}: ${formData.itemId} (${formData.gradeId})`
             };
 
-            await addDoc(collection(db, 'transactions'), payload);
+            await addTransaction(payload);
 
-            alert('Sale Invoice Created Successfully!');
+            toast.success('Sale Transaction Queued Successfully!');
             navigate('/');
         } catch (error) {
             console.error("Sale Error:", error);
-            alert("Failed to create invoice: " + error.message);
+            toast.error("Failed to create sale: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -155,14 +182,31 @@ export default function SalesInvoice() {
                         <select
                             name="buyer"
                             className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-ocean-dial outline-none bg-white"
-                            value={formData.buyer}
-                            onChange={handleChange}
+                            value={formData.buyerId}
+                            onChange={(e) => {
+                                const p = partners.find(x => x.id === e.target.value);
+                                setFormData(prev => ({ ...prev, buyerId: e.target.value, buyerName: p ? p.name : '' }));
+                            }}
                             required
                         >
                             <option value="">-- Select Buyer --</option>
                             {partners.map(p => (
-                                <option key={p.id} value={p.name}>{p.name} ({p.type})</option>
+                                <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
                             ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Payment Type</label>
+                        <select
+                            name="paymentType"
+                            className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-ocean-dial outline-none bg-white"
+                            value={formData.paymentType}
+                            onChange={handleChange}
+                            required
+                        >
+                            <option value="SALE_INVOICE">Standard Invoice (Credit)</option>
+                            <option value="LOCAL_SALE">Cash Sale (Immediate Wallet Impact)</option>
                         </select>
                     </div>
                 </div>

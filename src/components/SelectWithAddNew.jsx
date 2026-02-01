@@ -68,7 +68,7 @@ export default function SelectWithAddNew({
         });
 
         return () => unsub();
-    }, [collectionName, filterByLocation, scope.locationId, JSON.stringify(queryConstraints)]); // Deep check for array
+    }, [collectionName, filterByLocation, scope.locationId, JSON.stringify(queryConstraints || [])]);
 
     const handleAddNew = async () => {
         if (!newItemName.trim()) return;

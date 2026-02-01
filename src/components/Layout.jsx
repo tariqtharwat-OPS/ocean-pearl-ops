@@ -30,10 +30,10 @@ export default function Layout() {
     };
 
     // --- ROLE & NAVIGATION LOGIC (V2) ---
-    const role = currentUser?.role_v2 || 'READ_ONLY'; // Default fallback
+    const role = (currentUser?.role_v2 || 'READ_ONLY').toUpperCase();
     const isHQ = role === 'HQ_ADMIN';
-    const isManager = role === 'LOC_MANAGER';
-    const isUnit = role === 'UNIT_OP';
+    const isManager = role === 'LOC_MANAGER' || role === 'LOCATION_MANAGER';
+    const isUnit = role === 'UNIT_OP' || role === 'UNIT_OPERATOR';
     const isLegacyAdmin = currentUser?.role === 'admin'; // Fallback for root bootstrap
 
     const navItems = [];
@@ -55,7 +55,7 @@ export default function Layout() {
         if (capabilities.includes('receiving')) {
             navItems.push({ to: '/receiving', icon: Truck, label: t('receiving') });
         }
-        if (capabilities.includes('storage')) {
+        if (capabilities.includes('storage') || capabilities.includes('processing')) {
             navItems.push({ to: '/production', icon: Snowflake, label: t('storage') });
         }
         // Base Feature: Requests/Wallet

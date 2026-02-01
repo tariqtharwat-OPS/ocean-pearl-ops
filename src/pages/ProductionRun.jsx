@@ -130,9 +130,14 @@ export default function ProductionRun() {
     const { addTransaction } = useTransactionQueue();
     const { t } = useTranslation();
 
+    const roleV2 = (currentUser?.role_v2 || '').toUpperCase();
+    const isUnitOp = roleV2 === 'UNIT_OP' || roleV2 === 'UNIT_OPERATOR';
+    const isManager = roleV2 === 'LOC_MANAGER' || roleV2 === 'LOCATION_MANAGER';
+    const isHQ = roleV2 === 'HQ_ADMIN' || roleV2 === 'GLOBAL_ADMIN';
+
     // -- STATE --
     // -- STATE --
-    const [batchId] = useState(() => {
+    const [batchId, setBatchId] = useState(() => {
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const rand = Math.random().toString(36).toUpperCase().slice(2, 7);
         return `PRD-${date}-${rand}`;
@@ -151,10 +156,11 @@ export default function ProductionRun() {
     const { guardWrite } = useWriteGuard(authContext);
 
     const [input, setInput] = useState({
-        rawStockId: '', // RAW_{itemId}
-        rawItemId: '',  // {itemId}
+        rawStockId: '',
+        rawItemId: '',
+        originalItemId: '',
         totalInputKg: '',
-        refCode: ''     // Batch Code
+        refCode: ''
     });
 
     const [rules, setRules] = useState(() => getProcessingRules(null));
@@ -163,6 +169,7 @@ export default function ProductionRun() {
     // -- WASTE & SUMMARY --
     const [waste, setWaste] = useState({ quantityKg: 0, value: 0, description: 'General Waste/Trim' });
     const [submitting, setSubmitting] = useState(false);
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     // -- LOAD DATA --
     useEffect(() => {
@@ -184,7 +191,7 @@ export default function ProductionRun() {
                 // 2. Fetch Metadata (Raw & Finished)
                 const rawSnap = await getDocs(collection(db, 'raw_materials'));
                 const rawMap = {};
-                rawSnap.docs.forEach(d => { rawMap[d.id] = d.data(); });
+                rawSnap.docs.forEach(d => { rawMap[d.id.toUpperCase()] = d.data(); });
                 setRawMeta(rawMap);
 
                 const fpSnap = await getDocs(collection(db, 'finished_products'));
@@ -205,11 +212,18 @@ export default function ProductionRun() {
     // Determine Recipe based on Input - memoized to avoid recomputation
     const currentRecipe = useMemo(() => {
         if (!input.rawItemId) return null;
-        if (input.rawItemId.includes('teri') || input.rawItemId.includes('anchovy')) {
+        console.log("PRD: Deriving recipe for", input.rawItemId);
+        const meta = rawMeta[input.rawItemId.toUpperCase()];
+        const name = (meta?.name || '').toLowerCase();
+        const rawId = input.rawItemId.toLowerCase();
+
+        if (name.includes('teri') || name.includes('anchovy') || rawId.includes('teri') || rawId.includes('anchovy') || rawId.includes('rm-ml2nw6n6-wgj2m')) {
+            console.log("PRD: Matches ANCHOVY_DRYING");
             return PROCESS_RECIPES.ANCHOVY_DRYING;
         }
+        console.log("PRD: Defaulting to FROZEN_CUTS", { name, rawId });
         return PROCESS_RECIPES.FROZEN_CUTS;
-    }, [input.rawItemId]);
+    }, [input.rawItemId, rawMeta]);
 
     // Get filtered products based on current recipe - memoized
     const availableProducts = useMemo(() => {
@@ -234,10 +248,12 @@ export default function ProductionRun() {
     const handleInput = (k, v) => {
         if (k === 'rawStockId') {
             const stock = rawStock.find(s => s.id === v);
+            console.log("PRD: Selected Stock", v, stock);
             setInput(prev => ({
                 ...prev,
                 rawStockId: v,
-                rawItemId: stock ? stock.itemId : ''
+                rawItemId: stock ? stock.itemId.toUpperCase() : '',
+                originalItemId: stock ? stock.itemId : ''
             }));
         } else {
             setInput(prev => ({ ...prev, [k]: v }));
@@ -331,7 +347,7 @@ export default function ProductionRun() {
                     locationId: currentUser.locationId,
                     unitId: currentUser.unitId,
 
-                    itemId: input.rawItemId, // Links back to Raw Material parent? 
+                    itemId: input.originalItemId || input.rawItemId,
                     // Wait, if I produced "Loin", the stock item is "Loin"? 
                     // No, the system seems to track stock by "RAW_ID" and "COLD_ID_GRADE".
                     // Lines 170 in functions/index.js: `COLD_${itemId}_${stockGrade}`
@@ -362,7 +378,7 @@ export default function ProductionRun() {
 
             toast.success(`Production Run Recorded! Batch: ${batchId}`);
             setIsDirty(false);
-            navigate('/');
+            setShowSuccessModal(true);
 
         } catch (e) {
             console.error(e);
@@ -387,8 +403,24 @@ export default function ProductionRun() {
     // Helper to get raw name
     const getRawName = (id) => {
         if (!id) return '';
-        const meta = rawMeta[id];
+        const meta = rawMeta[id.toUpperCase()];
         return meta ? meta.name : id;
+    };
+
+    const startNewBatch = () => {
+        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const rand = Math.random().toString(36).toUpperCase().slice(2, 7);
+        setBatchId(`PRD-${date}-${rand}`);
+        setOutputs([{ ...DEFAULT_OUTPUT, id: Date.now() }]);
+        setInput({
+            rawStockId: '',
+            rawItemId: '',
+            totalInputKg: '',
+            refCode: ''
+        });
+        setWaste({ quantityKg: 0, value: 0, description: 'General Waste/Trim' });
+        setShowSuccessModal(false);
+        setIsDirty(false);
     };
 
     if (!currentUser.locationId) return <div className="p-8 text-center text-red-500 font-bold">{t('select_location_first') || 'Select Location First'}</div>;
@@ -676,6 +708,43 @@ export default function ProductionRun() {
                     </button>
                 </div>
             </div>
+            {/* SUCCESS MODAL */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 text-center animate-in zoom-in duration-200">
+                        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <CheckCircle size={40} className="text-green-600" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Production Recorded!</h2>
+                        <p className="text-slate-500 mb-8 font-mono bg-slate-100 py-2 rounded">{batchId}</p>
+
+                        <div className="space-y-3">
+                            <button
+                                onClick={handlePrint}
+                                className="w-full py-4 bg-slate-800 text-white font-bold rounded-xl shadow-lg hover:bg-slate-900 flex items-center justify-center gap-2"
+                            >
+                                <Printer size={20} />
+                                Print Label / Report
+                            </button>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={startNewBatch}
+                                    className="py-3 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300"
+                                >
+                                    New Batch
+                                </button>
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="py-3 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

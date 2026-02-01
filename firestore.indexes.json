@@ -41,6 +41,80 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "expenses",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "locationId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "expenseDate",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "expenses",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "locationId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "expenseDate",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "transactions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "unitId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "transactions",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "locationId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "partners",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "type",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "name",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

@@ -83,14 +83,14 @@ exports.postTransaction = onCall(async (request) => {
     if (role_v2 === 'HQ_ADMIN') {
         // Global Access - Trust Client Input
     }
-    else if (role_v2 === 'LOC_MANAGER') {
+    else if (role_v2 === 'LOC_MANAGER' || role_v2 === 'location_manager') {
         // FORCE Location Scope
         if (locationId && locationId !== target_id) {
             console.warn(`Manager ${context.auth.uid} tried sending to ${locationId}, forced to ${target_id}`);
         }
         locationId = target_id; // OVERRIDE
     }
-    else if (role_v2 === 'UNIT_OP' || role_v2 === 'site_user' || role_v2 === 'unit_admin') {
+    else if (role_v2 === 'UNIT_OP' || role_v2 === 'unit_operator' || role_v2 === 'site_user' || role_v2 === 'unit_admin') {
         // ALLOW Unit Ops but STRICTLY lock to their assigned location/unit
         locationId = target_id;
         unitId = userData.unitId || unitId; // Prefer DB-assigned unit, fallback to client if DB is empty but allow ONLY if they have permission
@@ -261,12 +261,12 @@ exports.postTransaction = onCall(async (request) => {
 
             if (type === 'CASH_TRANSFER') {
                 if (transferDirection === 'IN') {
-                    // HQ -> Location
+                    // HQ -> Unit
                     sourceWalletId = HQ_WALLET_ID;
-                    targetWalletId = locationId;
+                    targetWalletId = unitId;
                 } else { // OUT
-                    // Location -> HQ
-                    sourceWalletId = locationId;
+                    // Unit -> HQ
+                    sourceWalletId = unitId;
                     targetWalletId = HQ_WALLET_ID;
                 }
                 if (sourceWalletId === targetWalletId) throw new HttpsError('invalid-argument', 'Self-transfer blocked.');
@@ -274,7 +274,7 @@ exports.postTransaction = onCall(async (request) => {
                 targetWalletId = HQ_WALLET_ID;
             } else if (walletImpact !== 0) {
                 // Expense/Sale/Purchase
-                targetWalletId = locationId;
+                targetWalletId = unitId;
             }
 
             let sourceWalletDoc = null;
@@ -530,6 +530,9 @@ exports.createSystemUser = onCall(async (request) => {
         await db.collection('users').doc(userRecord.uid).set({
             email,
             role,
+            role_v2: (role === 'manager' || role === 'location_admin') ? 'LOC_MANAGER' :
+                (role === 'operator' || role === 'site_user' || role === 'unit_admin') ? 'UNIT_OP' :
+                    (role === 'admin') ? 'HQ_ADMIN' : 'READ_ONLY', // Auto-map V2 Role
             displayName,
             locationId: locationId || null,
             unitId: unitId || null,
@@ -579,7 +582,12 @@ exports.manageUser = onCall(async (request) => {
         if (action === 'update_profile') {
             const { role, locationId, unitId, displayName, phone } = payload;
             const updateData = {};
-            if (role) updateData.role = role;
+            if (role) {
+                updateData.role = role;
+                updateData.role_v2 = (role === 'manager' || role === 'location_admin') ? 'LOC_MANAGER' :
+                    (role === 'operator' || role === 'site_user' || role === 'unit_admin') ? 'UNIT_OP' :
+                        (role === 'admin') ? 'HQ_ADMIN' : 'READ_ONLY';
+            }
             if (locationId !== undefined) updateData.locationId = locationId; // Allow null to clear
             if (unitId !== undefined) updateData.unitId = unitId;             // Allow null to clear
             if (displayName) updateData.displayName = displayName;
@@ -1130,3 +1138,4 @@ exports.adminFixAuth = onRequest(async (req, res) => {
 
     res.status(200).send(results.join('\n'));
 });
+

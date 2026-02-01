@@ -11,7 +11,7 @@ import { useWriteGuard } from '../lib/writeGuard';
 
 import SelectWithAddNew from '../components/SelectWithAddNew';
 import { useUnsavedChanges } from '../lib/useUnsavedChanges';
-import toast from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 
 const DEFAULT_ROW = { itemId: '', sizeId: '', gradeId: '', quantityKg: '', pricePerKg: '', total: 0 };
 
@@ -69,18 +69,14 @@ export default function Receiving() {
                 const unit = currentUser.unitId || '';
                 let items = [];
 
-                if (unit === 'gudang_teri' || unit === 'gudang_ikan_teri') {
-                    items = [{ id: 'anchovy_teri', label: 'Anchovy (Ikan Teri)', active: true }];
-                } else {
-                    const iSnap = await getDocs(collection(db, 'raw_materials'));
-                    items = iSnap.docs
-                        .filter(d => d.data().active && d.data().name && d.data().name.trim() !== '')
-                        .map(d => ({
-                            id: d.id,
-                            label: `${d.data().name} (${d.data().name_id || '-'})`,
-                            ...d.data()
-                        }));
-                }
+                const iSnap = await getDocs(collection(db, 'raw_materials'));
+                items = iSnap.docs
+                    .filter(d => d.data().active && d.data().name && d.data().name.trim() !== '')
+                    .map(d => ({
+                        id: d.id,
+                        label: `${d.data().name} (${d.data().name_id || '-'})`,
+                        ...d.data()
+                    }));
                 setCatalog(items);
             } catch (e) {
                 console.error(e);
@@ -91,9 +87,7 @@ export default function Receiving() {
         load();
 
         return () => unsubPartners();
-    }, [currentUser.locationId, currentUser.unitId]);
-
-    // -- CALCULATIONS --
+    }, [currentUser.locationId, currentUser.unitId]); // Added fallback // -- CALCULATIONS --
     const updateRow = (idx, field, val) => {
         const newRows = [...rows];
         newRows[idx][field] = val;
@@ -126,7 +120,7 @@ export default function Receiving() {
         let effectiveSupplierId = header.supplierId;
         if (!effectiveSupplierId || effectiveSupplierId.trim() === '') {
             effectiveSupplierId = 'FISHERMAN_CASH';
-            toast.info('Using default supplier: FISHERMAN_CASH', { duration: 3000 });
+            toast('Using default supplier: FISHERMAN_CASH', { duration: 3000, icon: 'ℹ️' });
         }
 
         // Validation: No Negatives
@@ -158,8 +152,20 @@ export default function Receiving() {
             }
 
             // Sequential Insert
-            // Note: We use one Batch ID for all lines. 
+            // Note: We use one Batch ID for all lines.
             // Phase 3: We pass 'customDate' to allow backdating.
+
+            // Build effective timestamp
+            let effectiveDate = new Date(header.date);
+            const now = new Date();
+            // If date is today, use current hours/mins. Otherwise 12:00 PM (noon) is safer than midnight for TZ issues.
+            if (header.date === now.toISOString().split('T')[0]) {
+                effectiveDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+            } else {
+                effectiveDate.setHours(12, 0, 0);
+            }
+            const isoTimestamp = effectiveDate.toISOString();
+
             for (const row of validRows) {
                 await addTransaction({
                     type: 'PURCHASE_RECEIVE',
@@ -168,8 +174,8 @@ export default function Receiving() {
                     supplierId: effectiveSupplierId,
                     paymentMethod: header.terms,
                     paymentStatus: header.terms === 'cash' ? 'paid' : 'pending',
-                    timestamp: new Date(header.date).toISOString(), // Visual Only
-                    customDate: new Date(header.date).toISOString(), // Phase 3: Backdating
+                    timestamp: isoTimestamp,
+                    customDate: isoTimestamp,
                     batchId,
                     itemId: row.itemId,
                     quantityKg: parseFloat(row.quantityKg),
@@ -428,10 +434,10 @@ export default function Receiving() {
                     <tfoot className="bg-slate-50 border-t border-slate-200 print:bg-white print:border-t-2 print:border-black">
                         <tr>
                             <td colSpan="3" className="p-4 text-right font-bold text-slate-500 print:text-black">{t('grand_total')}</td>
-                            <td className="p-4 text-right font-mono font-bold">{totalQty.toLocaleString()} kg</td>
+                            <td className="p-4 text-right font-mono font-bold">{totalQty.toFixed(2)} kg</td>
                             <td></td>
                             <td className="p-4 text-right font-mono font-bold text-lg text-ocean-dial print:text-black">
-                                {grandTotal.toLocaleString()}
+                                IDR {grandTotal.toLocaleString()}
                             </td>
                             <td className="print:hidden"></td>
                         </tr>

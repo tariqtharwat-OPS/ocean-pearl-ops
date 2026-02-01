@@ -1,0 +1,82 @@
+[
+  {
+    "step": "A1",
+    "role": "Operator",
+    "action": "Receiving: 60kg Anchovy @ Rp 30k/kg",
+    "expected": "Stock +60kg, Toast success, List entry, Shark log",
+    "observed": "ERROR: page.waitForTimeout is not a function",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TypeError: page.waitForTimeout is not a function\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:58:16)\n    at async cycleA_Step1_OperatorReceiving (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:116:9)\n    at async main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:630:9)"
+  },
+  {
+    "step": "A2",
+    "role": "Operator",
+    "action": "Expense: Ice Rp 400k pending",
+    "expected": "Expense in pending list, Toast success, Shark log",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleA_Step2_OperatorExpense (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:210:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:631:15)"
+  },
+  {
+    "step": "A3",
+    "role": "Manager",
+    "action": "Approve expense Rp 400k",
+    "expected": "Status→APPROVED, Wallet effect, Shark log",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleA_Step3_ManagerApproval (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:281:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:632:15)"
+  },
+  {
+    "step": "A4",
+    "role": "CEO",
+    "action": "Verify dashboards + reports",
+    "expected": "Stock increase visible, Expense approved, Context correct",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleA_Step4_CEOVerify (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:341:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:633:15)"
+  },
+  {
+    "step": "B1",
+    "role": "Operator",
+    "action": "Production: 50kg raw → 35kg finished + 15kg waste",
+    "expected": "Raw -50kg, Finished +35kg, Waste recorded, No NaN, Shark log",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleB_Step1_ProductionRun (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:406:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:636:15)"
+  },
+  {
+    "step": "B2",
+    "role": "Operator",
+    "action": "Local Sale: 20kg finished @ Rp 80k/kg",
+    "expected": "Finished -20kg, Revenue +1.6M, Shark log",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleB_Step2_LocalSale (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:476:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:637:15)"
+  },
+  {
+    "step": "B3",
+    "role": "CEO",
+    "action": "Verify inventory reconciliation",
+    "expected": "Stock levels match transactions, Cash flow correct",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleB_Step3_CEOReconciliation (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:536:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:638:15)"
+  },
+  {
+    "step": "B4",
+    "role": "CEO",
+    "action": "Verify Shark AI audit",
+    "expected": "All 6 transactions logged with timestamps, anomaly flags if applicable",
+    "observed": "ERROR: Navigation timeout of 30000 ms exceeded",
+    "status": "FAIL",
+    "artifacts": [],
+    "notes": "TimeoutError: Navigation timeout of 30000 ms exceeded\n    at new Deferred (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:60:34)\n    at Deferred.create (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\Deferred.js:21:16)\n    at new LifecycleWatcher (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\LifecycleWatcher.js:73:60)\n    at CdpFrame.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\cdp\\Frame.js:149:29)\n    at CdpFrame.<anonymous> (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\util\\decorators.js:109:27)\n    at CdpPage.goto (D:\\OPS\\node_modules\\puppeteer-core\\lib\\cjs\\puppeteer\\api\\Page.js:572:43)\n    at login (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:46:16)\n    at cycleB_Step4_SharkAudit (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:583:15)\n    at main (D:\\OPS\\phase_x_gate2_evidence_collector.cjs:639:15)"
+  }
+]
