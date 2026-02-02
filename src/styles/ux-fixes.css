@@ -1,0 +1,302 @@
+/**
+ * UX FIXES - BUTTON VISIBILITY & CONTRAST
+ * 
+ * Mandatory UX Rules:
+ * - Buttons must ALWAYS be visible without hover
+ * - No button color may blend with background
+ * - Ensure sufficient contrast in light mode and dark mode
+ * - Primary actions must be visually clear
+ * - Forms must be readable for low-tech users
+ */
+
+/* === BUTTON VISIBILITY === */
+
+/* Ensure all buttons have visible borders and backgrounds */
+button {
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.2s ease !important;
+}
+
+/* Primary action buttons - always visible */
+button.btn-primary,
+button[type="submit"],
+.btn-primary {
+    background-color: #0ea5e9 !important;
+    color: white !important;
+    border: 2px solid #0284c7 !important;
+    font-weight: 600 !important;
+    min-height: 44px !important;
+}
+
+button.btn-primary:hover,
+button[type="submit"]:hover,
+.btn-primary:hover {
+    background-color: #0284c7 !important;
+    border-color: #0369a1 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Secondary buttons - always visible */
+button.btn-secondary,
+.btn-secondary {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border: 2px solid #cbd5e1 !important;
+    font-weight: 500 !important;
+    min-height: 44px !important;
+}
+
+button.btn-secondary:hover,
+.btn-secondary:hover {
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+}
+
+/* Danger/Delete buttons - always visible */
+button.btn-danger,
+.btn-danger {
+    background-color: #ef4444 !important;
+    color: white !important;
+    border: 2px solid #dc2626 !important;
+    font-weight: 600 !important;
+}
+
+button.btn-danger:hover,
+.btn-danger:hover {
+    background-color: #dc2626 !important;
+    border-color: #b91c1c !important;
+}
+
+/* Icon-only buttons - ensure visibility */
+button[aria-label],
+button:has(svg:only-child) {
+    background-color: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 8px !important;
+    border-radius: 8px !important;
+}
+
+button[aria-label]:hover,
+button:has(svg:only-child):hover {
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+}
+
+/* === CONTRAST FIXES === */
+
+/* Ensure text has sufficient contrast */
+.text-slate-400,
+.text-slate-500 {
+    color: #64748b !important;
+}
+
+.text-slate-600 {
+    color: #475569 !important;
+}
+
+.text-slate-700 {
+    color: #334155 !important;
+}
+
+/* Background contrast */
+.bg-slate-50 {
+    background-color: #f8fafc !important;
+}
+
+.bg-slate-100 {
+    background-color: #f1f5f9 !important;
+}
+
+/* Border contrast */
+.border-slate-200 {
+    border-color: #e2e8f0 !important;
+}
+
+.border-slate-300 {
+    border-color: #cbd5e1 !important;
+}
+
+/* === FORM ELEMENTS === */
+
+/* Input fields - always visible borders */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+select,
+textarea {
+    border: 2px solid #cbd5e1 !important;
+    background-color: white !important;
+    color: #1e293b !important;
+    min-height: 44px !important;
+    font-size: 16px !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #0ea5e9 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1) !important;
+}
+
+/* Labels - always readable */
+label {
+    color: #334155 !important;
+    font-weight: 600 !important;
+    margin-bottom: 4px !important;
+    display: block !important;
+}
+
+/* === TABLE VISIBILITY === */
+
+/* Table headers - high contrast */
+thead th {
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+}
+
+/* Table rows - clear separation */
+tbody tr {
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+tbody tr:hover {
+    background-color: #f8fafc !important;
+}
+
+/* === NAVIGATION === */
+
+/* Nav links - always visible */
+nav a {
+    color: #475569 !important;
+    font-weight: 500 !important;
+}
+
+nav a:hover {
+    color: #0ea5e9 !important;
+    background-color: #f1f5f9 !important;
+}
+
+nav a.active {
+    color: #0ea5e9 !important;
+    background-color: #e0f2fe !important;
+    border-left: 4px solid #0ea5e9 !important;
+}
+
+/* === CARDS & CONTAINERS === */
+
+/* Cards - clear borders */
+.card,
+.panel,
+[class*="rounded-xl"] {
+    border: 1px solid #e2e8f0 !important;
+    background-color: white !important;
+}
+
+/* === ALERTS & NOTIFICATIONS === */
+
+/* Success */
+.alert-success,
+.bg-emerald-50 {
+    background-color: #d1fae5 !important;
+    border: 2px solid #10b981 !important;
+    color: #065f46 !important;
+}
+
+/* Warning */
+.alert-warning,
+.bg-amber-50 {
+    background-color: #fef3c7 !important;
+    border: 2px solid #f59e0b !important;
+    color: #78350f !important;
+}
+
+/* Error */
+.alert-error,
+.bg-red-50 {
+    background-color: #fee2e2 !important;
+    border: 2px solid #ef4444 !important;
+    color: #7f1d1d !important;
+}
+
+/* Info */
+.alert-info,
+.bg-blue-50 {
+    background-color: #dbeafe !important;
+    border: 2px solid #3b82f6 !important;
+    color: #1e3a8a !important;
+}
+
+/* === HOVER STATES === */
+
+/* Remove hover-only visibility */
+.hover\:opacity-100 {
+    opacity: 1 !important;
+}
+
+.group:hover .group-hover\:opacity-100 {
+    opacity: 1 !important;
+}
+
+/* === LOADING STATES === */
+
+/* Loading spinners - always visible */
+.loading,
+.spinner {
+    border: 3px solid #e2e8f0 !important;
+    border-top-color: #0ea5e9 !important;
+}
+
+/* === DISABLED STATES === */
+
+button:disabled,
+input:disabled,
+select:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+}
+
+/* === FOCUS INDICATORS === */
+
+*:focus-visible {
+    outline: 3px solid #0ea5e9 !important;
+    outline-offset: 2px !important;
+}
+
+/* === PRINT MODE === */
+
+@media print {
+    button,
+    nav,
+    .no-print {
+        display: none !important;
+    }
+    
+    * {
+        color: black !important;
+        background: white !important;
+    }
+}
+
+/* === MOBILE RESPONSIVENESS === */
+
+@media (max-width: 768px) {
+    button {
+        min-height: 48px !important;
+        font-size: 16px !important;
+    }
+    
+    input,
+    select,
+    textarea {
+        min-height: 48px !important;
+        font-size: 16px !important;
+    }
+}
