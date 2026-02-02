@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useWriteGuard } from '../lib/writeGuard';
 import { toast } from 'react-hot-toast';
 import { useUnsavedChanges } from '../lib/useUnsavedChanges';
+import { UNIT_TYPES_V2, getAllowedProcesses, getAllowedGrades } from '../lib/constants/unitTypesV2';
 // Inline all constants to completely avoid circular dependency issues
 const GRADES = ['A', 'B', 'C', 'Reject', 'Mix'];
 
@@ -168,8 +169,22 @@ export default function ProductionRun() {
 
     // -- WASTE & SUMMARY --
     const [waste, setWaste] = useState({ quantityKg: 0, value: 0, description: 'General Waste/Trim' });
+    const [byProducts, setByProducts] = useState([]); // Optional by-products
+    const [showByProductForm, setShowByProductForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    
+    // Get unit type for filtering
+    const getUnitType = (unitId) => {
+        const location = LOCATIONS[currentUser?.locationId];
+        if (!location) return null;
+        const unit = location.units.find(u => u.id === unitId);
+        return unit?.type || null;
+    };
+    
+    const currentUnitType = getUnitType(currentUser?.unitId);
+    const allowedProcesses = currentUnitType ? getAllowedProcesses(currentUnitType) : [];
+    const allowedGrades = currentUnitType ? getAllowedGrades(currentUnitType) : GRADES;
 
     // -- LOAD DATA --
     useEffect(() => {

@@ -7,6 +7,7 @@ import { collection, getDocs, query, orderBy, where, onSnapshot } from 'firebase
 import { ArrowLeft, Plus, Trash2, Save, Calendar, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSizeList, GRADES, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
+import { UNIT_TYPES_V2, getAllowedItems, getAllowedGrades, isItemAllowed, isGradeAllowed } from '../lib/constants/unitTypesV2';
 import { useWriteGuard } from '../lib/writeGuard';
 
 import SelectWithAddNew from '../components/SelectWithAddNew';
@@ -70,13 +71,21 @@ export default function Receiving() {
                 let items = [];
 
                 const iSnap = await getDocs(collection(db, 'raw_materials'));
-                items = iSnap.docs
+                const allItems = iSnap.docs
                     .filter(d => d.data().active && d.data().name && d.data().name.trim() !== '')
                     .map(d => ({
                         id: d.id,
                         label: `${d.data().name} (${d.data().name_id || '-'})`,
                         ...d.data()
                     }));
+                
+                // Filter items by unit type
+                const unitType = getUnitType(unit);
+                if (unitType) {
+                    items = getAllowedItems(unitType, allItems);
+                } else {
+                    items = allItems;
+                }
                 setCatalog(items);
             } catch (e) {
                 console.error(e);
@@ -236,6 +245,17 @@ export default function Receiving() {
 
     const locLabel = LOCATIONS[currentUser?.locationId]?.label || currentUser?.locationId;
     const unitLabel = LOCATIONS[currentUser?.locationId]?.units.find(u => u.id === currentUser?.unitId)?.label || currentUser?.unitId;
+    
+    // Get unit type for filtering
+    const getUnitType = (unitId) => {
+        const location = LOCATIONS[currentUser?.locationId];
+        if (!location) return null;
+        const unit = location.units.find(u => u.id === unitId);
+        return unit?.type || null;
+    };
+    
+    const currentUnitType = getUnitType(currentUser?.unitId);
+    const allowedGrades = currentUnitType ? getAllowedGrades(currentUnitType) : GRADES;
 
     if (!currentUser.locationId) return <div className="p-10 text-center text-red-500 font-bold">{t('select_location_first')}</div>;
 
@@ -389,7 +409,7 @@ export default function Receiving() {
                                         onChange={e => updateRow(idx, 'gradeId', e.target.value)}
                                     >
                                         <option value="">-</option>
-                                        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                        {allowedGrades.map(g => <option key={g} value={g}>{g}</option>)}
                                     </select>
                                     <div className="hidden print:block text-xs uppercase">{row.gradeId}</div>
                                 </td>
