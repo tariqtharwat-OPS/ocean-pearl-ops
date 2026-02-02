@@ -12,6 +12,7 @@ import SalesInvoice from './pages/SalesInvoice';
 import AdminPanel from './pages/Admin/AdminPanel';
 import ReportsViewer from './pages/Reports/ReportsViewer';
 import WalletManager from './pages/WalletManager';
+import BulkImport from './pages/BulkImport';
 const SharkPage = React.lazy(() => import('./pages/SharkPage'));
 import DashboardV1 from './pages/Admin/DashboardV1';
 import NotFound from './pages/NotFound';
@@ -123,6 +124,13 @@ function AppRoutes() {
                 <Route path="/reports" element={
                     <PrivateRoute allowedRoles={REPORTS_VIEW}>
                         <ReportsViewer key={contextKey} />
+                    </PrivateRoute>
+                } />
+
+                {/* Bulk Import (CEO Only) */}
+                <Route path="/bulk-import" element={
+                    <PrivateRoute allowedRoles={['ceo']}>
+                        <BulkImport />
                     </PrivateRoute>
                 } />
 

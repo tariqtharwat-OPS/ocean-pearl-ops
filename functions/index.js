@@ -26,6 +26,8 @@ const seedMaster = require('./seed_master');
 
 const migrationV2 = require('./migration_v2');
 exports.seedRealisticData = require('./seed_realistic').seedRealisticData;
+exports.seedDay0 = require('./seed_day0').seedDay0;
+exports.simulateWeek = require('./simulate_week').simulateWeek;
 // SECURITY: Disabled for Production
 // exports.backupFirestore = migrationV2.backupFirestore;
 // exports.migrateSchemaV2 = migrationV2.migrateSchemaV2;
@@ -227,6 +229,24 @@ exports.postTransaction = onCall(async (request) => {
                 walletImpact = amount; // Will be handled specifically by HQ logic
                 break;
 
+            case 'TRANSPORT':
+                // Transport/Freight transaction
+                // Moves inventory from source to destination
+                // Charges freight cost
+                if (!quantityKg || quantityKg <= 0) {
+                    throw new HttpsError('invalid-argument', 'Quantity (kg) is required for transport.');
+                }
+                if (!data.freightCost || data.freightCost <= 0) {
+                    throw new HttpsError('invalid-argument', 'Freight cost is required for transport.');
+                }
+                
+                calculatedTotal = data.freightCost;
+                // Stock impact handled separately for source/destination
+                // This is tracked in the transaction record
+                walletImpact = -calculatedTotal; // Deduct freight cost
+                break;
+
+            default:
                 throw new HttpsError('invalid-argument', 'Unknown Transaction Type');
         }
 
