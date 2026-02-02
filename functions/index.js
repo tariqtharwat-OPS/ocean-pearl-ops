@@ -7,6 +7,7 @@ const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 setGlobalOptions({ region: "asia-southeast1" });
 const admin = require('firebase-admin');
 const { getFirestore } = require('firebase-admin/firestore');
+const { validateTransaction } = require('./unitTypeValidation');
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
@@ -105,6 +106,14 @@ exports.postTransaction = onCall(async (request) => {
     // Basic validation (Check again after override)
     if (!locationId || !unitId || !type) {
         throw new HttpsError('invalid-argument', 'Missing core transaction fields.');
+    }
+    
+    // V2 UNIT TYPE VALIDATION
+    if (itemId) {
+        const validation = validateTransaction(unitId, itemId, gradeId);
+        if (!validation.valid) {
+            throw new HttpsError('invalid-argument', `Unit Type Validation Failed: ${validation.error}`);
+        }
     }
 
     const transactionRef = db.collection('transactions').doc();

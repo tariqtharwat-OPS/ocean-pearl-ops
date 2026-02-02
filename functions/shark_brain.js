@@ -60,6 +60,36 @@ async function gatherContext(message, userContext) {
         if (userContext.locationId) targetLocations.push(userContext.locationId);
     }
     contextParts.push(`SCOPE_MODE: ${scopeDesc}`);
+    
+    // V2 ANOMALY CHECKS
+    if (lowerMsg.includes('anomaly') || lowerMsg.includes('check') || lowerMsg.includes('alert')) {
+        tasks.push((async () => {
+            try {
+                const anomalies = [];
+                
+                // Check for low yield in processing runs
+                const processingSnap = await db.collection('transactions')
+                    .where('type', '==', 'COLD_STORAGE_IN')
+                    .orderBy('timestamp', 'desc')
+                    .limit(10)
+                    .get();
+                
+                processingSnap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.rawUsedKg && data.quantityKg) {
+                        const yield = (data.quantityKg / data.rawUsedKg) * 100;
+                        if (yield < 30) {
+                            anomalies.push(`CRITICAL LOW YIELD: ${yield.toFixed(1)}% in ${doc.id}`);
+                        }
+                    }
+                });
+                
+                if (anomalies.length > 0) {
+                    contextParts.push(`ANOMALIES_DETECTED: ${anomalies.join(', ')}`);
+                }
+            } catch (e) { console.warn('Anomaly check failed', e); }
+        })());
+    }
 
     // 2. GLOBAL DASHBOARD (Cached)
     if (lowerMsg.includes('dashboard') || lowerMsg.includes('summary') || lowerMsg.includes('status')) {
