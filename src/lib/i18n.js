@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { EXTENDED_TRANSLATIONS } from './i18n_extended';
 
 const resources = {
     en: {
@@ -154,7 +155,33 @@ const resources = {
             "processing_output": "Hasil Produksi",
             "add_output": "Tambah Baris",
             "confirm_production": "Konfirmasi Produksi",
-            "processing": "Sedang Proses..."
+            "processing": "Sedang Proses...",
+            
+            // Extended translations
+            ...EXTENDED_TRANSLATIONS.id
+        }
+    },
+    // Merge extended English translations
+    en: {
+        translation: {
+            ...resources.en.translation,
+            ...EXTENDED_TRANSLATIONS.en
+        }
+    }
+};
+
+// Override resources with merged translations
+const mergedResources = {
+    en: {
+        translation: {
+            ...resources.en.translation,
+            ...EXTENDED_TRANSLATIONS.en
+        }
+    },
+    id: {
+        translation: {
+            ...resources.id.translation,
+            ...EXTENDED_TRANSLATIONS.id
         }
     }
 };
@@ -163,10 +190,14 @@ i18n
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
-        resources,
+        resources: mergedResources,
         fallbackLng: 'en',
         interpolation: {
             escapeValue: false
+        },
+        detection: {
+            order: ['localStorage', 'navigator'],
+            caches: ['localStorage']
         }
     });
 
