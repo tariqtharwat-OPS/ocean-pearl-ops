@@ -7,6 +7,7 @@ import { collection, getDocs, query, orderBy, where, onSnapshot } from 'firebase
 import { ArrowLeft, Plus, Trash2, Save, Calendar, Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getSizeList, GRADES, SIZE_CONFIG, LOCATIONS } from '../lib/constants';
+import { filterItemsByUnit, getAllowedGrades } from '../lib/unitTypeFilters';
 import { useWriteGuard } from '../lib/writeGuard';
 
 import SelectWithAddNew from '../components/SelectWithAddNew';
@@ -77,7 +78,10 @@ export default function Receiving() {
                         label: `${d.data().name} (${d.data().name_id || '-'})`,
                         ...d.data()
                     }));
-                setCatalog(items);
+                
+                // V2: Filter items by unit type
+                const filteredItems = filterItemsByUnit(items, unit);
+                setCatalog(filteredItems);
             } catch (e) {
                 console.error(e);
             } finally {
@@ -389,7 +393,7 @@ export default function Receiving() {
                                         onChange={e => updateRow(idx, 'gradeId', e.target.value)}
                                     >
                                         <option value="">-</option>
-                                        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                        {getAllowedGrades(currentUser.unitId).map(g => <option key={g} value={g}>{g}</option>)}
                                     </select>
                                     <div className="hidden print:block text-xs uppercase">{row.gradeId}</div>
                                 </td>
