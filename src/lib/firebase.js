@@ -22,9 +22,11 @@ const functionsInstances = {};
 export const getFunctionsForRegion = (region) => {
     if (!functionsInstances[region]) {
         functionsInstances[region] = getFunctions(app, region);
+        /*
         if (location.hostname === "localhost") {
             connectFunctionsEmulator(functionsInstances[region], 'localhost', 5001);
         }
+        */
     }
     return functionsInstances[region];
 };

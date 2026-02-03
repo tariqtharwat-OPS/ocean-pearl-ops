@@ -46,393 +46,13 @@ exports.rejectFinancialRequest = financialV2.rejectFinancialRequest;
  * Single entry point for all operational transactions.
  * Enforces server-side validation, calculations, and atomic stock updates.
  */
+const { handleTransactionInternal } = require('./transaction_engine');
+
 exports.postTransaction = onCall(async (request) => {
-    const data = request.data;
-    const context = { auth: request.auth }; // Shim key for V1 logic compatibility
-    // 1. Authentication Check
-    if (!context.auth) {
-        throw new HttpsError('unauthenticated', 'User must be logged in.');
-    }
-
-    // Use LET to allow overriding by RBAC
-    let { type, locationId, unitId, itemId, quantityKg, pricePerKg, gradeId, supplyType, rawUsedKg, paymentMethod, amount, transferDirection, description, customDate, skipAudit } = data;
-
-    // Timestamp Logic
-    let timestamp;
-    if (customDate) {
-        const d = new Date(customDate);
-        if (isNaN(d.getTime())) timestamp = admin.firestore.Timestamp.now();
-        else timestamp = admin.firestore.Timestamp.fromDate(d);
-    } else {
-        timestamp = admin.firestore.Timestamp.now();
-    }
-
-    // --- DATA INTEGRITY: Lowercase IDs ---
-    if (locationId) locationId = locationId.toLowerCase();
-    if (unitId) unitId = unitId.toLowerCase();
-    if (itemId) itemId = itemId.toLowerCase();
-
-    // === 1.5 RBAC ENFORCEMENT & SCOPE OVERRIDE (Step 3) ===
-    const userSnap = await db.collection('users').doc(context.auth.uid).get();
-    const userData = userSnap.data() || {};
-    const role_v2 = userData.role_v2;
-    const target_id = userData.target_id || userData.locationId || userData.loc;
-
-    if (!role_v2) {
-        throw new HttpsError('permission-denied', 'Account Security: You have no V2 Role assigned. Contact HQ.');
-    }
-
-    if (role_v2 === 'HQ_ADMIN') {
-        // Global Access - Trust Client Input
-    }
-    else if (role_v2 === 'LOC_MANAGER' || role_v2 === 'location_manager') {
-        // FORCE Location Scope
-        if (locationId && locationId !== target_id) {
-            console.warn(`Manager ${context.auth.uid} tried sending to ${locationId}, forced to ${target_id}`);
-        }
-        locationId = target_id; // OVERRIDE
-    }
-    else if (role_v2 === 'UNIT_OP' || role_v2 === 'unit_operator' || role_v2 === 'site_user' || role_v2 === 'unit_admin') {
-        // ALLOW Unit Ops but STRICTLY lock to their assigned location/unit
-        locationId = target_id;
-        unitId = userData.unitId || unitId; // Prefer DB-assigned unit, fallback to client if DB is empty but allow ONLY if they have permission
-        if (!locationId || !unitId) {
-            throw new HttpsError('permission-denied', 'Account Security: Unit Operator must have assigned Location and Unit.');
-        }
-    }
-    else {
-        throw new HttpsError('permission-denied', 'Unknown Role Type.');
-    }
-
-    // Basic validation (Check again after override)
-    if (!locationId || !unitId || !type) {
-        throw new HttpsError('invalid-argument', 'Missing core transaction fields.');
-    }
-
-    const transactionRef = db.collection('transactions').doc();
-    // Use the potentially overridden locationId
-    const locationRef = db.doc(`locations/${locationId}/units/${unitId}`);
-
-
-    let calculatedTotal = 0;
-    let stockImpactRaw = 0;
-    let stockImpactCold = 0;
-    let walletImpact = 0;
-    let stockGrade = gradeId || "NA"; // Spec Rule: Default to NA
-
-    // === CRITICAL QUANTITY VALIDATION ===
-    // Reject any transaction that impacts stock without valid kg
-    const stockTypes = ['PURCHASE_RECEIVE', 'COLD_STORAGE_IN', 'SALE_INVOICE', 'LOCAL_SALE', 'STOCK_ADJUSTMENT'];
-    if (stockTypes.includes(type)) {
-        if (quantityKg === undefined || quantityKg === null || quantityKg === '') {
-            throw new HttpsError('invalid-argument', 'Quantity (kg) is required for this transaction type.');
-        }
-        const qty = parseFloat(quantityKg);
-        if (isNaN(qty) || qty <= 0) {
-            throw new HttpsError('invalid-argument', `Invalid quantity: ${quantityKg}. Must be a positive number.`);
-        }
-        quantityKg = qty; // Normalize
-    }
-
-    try {
-        switch (type) {
-            case 'PURCHASE_RECEIVE':
-                // Validation
-                if (!pricePerKg || pricePerKg <= 0) {
-                    throw new HttpsError('invalid-argument', 'Price per Kg is mandatory.');
-                }
-
-                // Calculation
-                calculatedTotal = (quantityKg || 0) * pricePerKg;
-
-                // Stock Impact (Increments RAW)
-                stockImpactRaw = quantityKg;
-
-                // Cash Logic: Deduct if Cash
-                if (paymentMethod === 'cash') {
-                    walletImpact = -calculatedTotal;
-                }
-                break;
-
-            case 'COLD_STORAGE_IN':
-                // Yield Traceability: 
-                // rawUsedKg is optional. If valid, use it to decrement RAW. Else fallback to quantityKg (1:1).
-                const decrementAmount = (rawUsedKg && rawUsedKg > 0) ? rawUsedKg : quantityKg;
-
-                stockImpactRaw = -decrementAmount; // Decrement Raw (Consumption)
-                stockImpactCold = quantityKg; // Increment Cold (Output)
-
-                // Spec Rule: Grade is optional here, defaults to NA (already set)
-                break;
-
-            case 'EXPENSE':
-                // No stock impact
-                calculatedTotal = amount || 0;
-                if (calculatedTotal <= 0) {
-                    throw new HttpsError('invalid-argument', 'Expense amount must be positive.');
-                }
-                if (!description) {
-                    throw new HttpsError('invalid-argument', 'Description is mandatory for Expenses.');
-                }
-
-                // Cash Logic
-                if (paymentMethod === 'cash') {
-                    walletImpact = -calculatedTotal;
-                }
-                break;
-
-            case 'SALE_INVOICE':
-                // Validation
-                if (!gradeId) {
-                    throw new HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
-                }
-
-                // Calculation
-                calculatedTotal = (quantityKg || 0) * (pricePerKg || 0);
-
-                // Stock Impact (Decrement COLD)
-                stockImpactCold = -quantityKg;
-
-                // Sales Invoice assumes Credit/Receivable usually, unless specified as cash?
-                // Spec says LOCAL_SALE is for cash. SALE_INVOICE implies standard invoice.
-                // We will NOT touch wallet for SALE_INVOICE unless explicitly requested.
-                // Keeping V1 behavior: Updates Buyer Receivable (not implemented here but implied)
-                break;
-
-            case 'LOCAL_SALE':
-                // Same stock logic as SALE_INVOICE but adds to Wallet
-                if (!gradeId) throw new HttpsError('invalid-argument', 'Grade is MANDATORY for Sales.');
-
-                calculatedTotal = (quantityKg || 0) * (pricePerKg || 0);
-                stockImpactCold = -quantityKg;
-                walletImpact = calculatedTotal; // Add to wallet
-                break;
-
-            case 'CASH_TRANSFER':
-                if (!amount || amount <= 0) throw new HttpsError('invalid-argument', 'Amount required.');
-                if (!description) throw new HttpsError('invalid-argument', 'Description required.');
-
-                calculatedTotal = amount;
-                if (transferDirection === 'IN') { // HQ -> Unit
-                    walletImpact = amount;
-                } else if (transferDirection === 'OUT') { // Unit -> HQ
-                    walletImpact = -amount;
-                } else {
-                    throw new HttpsError('invalid-argument', 'Invalid Transfer Direction.');
-                }
-                break;
-
-            case 'BANK_DEPOSIT':
-                // Capital Injection logic
-                if (!amount || amount <= 0) throw new HttpsError('invalid-argument', 'Amount required.');
-                calculatedTotal = amount;
-                walletImpact = amount; // Will be handled specifically by HQ logic
-                break;
-
-            case 'TRANSPORT':
-                // Transport/Freight transaction
-                // Moves inventory from source to destination
-                // Charges freight cost
-                if (!quantityKg || quantityKg <= 0) {
-                    throw new HttpsError('invalid-argument', 'Quantity (kg) is required for transport.');
-                }
-                if (!data.freightCost || data.freightCost <= 0) {
-                    throw new HttpsError('invalid-argument', 'Freight cost is required for transport.');
-                }
-                
-                calculatedTotal = data.freightCost;
-                // Stock impact handled separately for source/destination
-                // This is tracked in the transaction record
-                walletImpact = -calculatedTotal; // Deduct freight cost
-                break;
-
-            default:
-                throw new HttpsError('invalid-argument', 'Unknown Transaction Type');
-        }
-
-        // 2. Commit Transaction Record
-        await db.runTransaction(async (t) => {
-            // A. Serial Number Generation
-            const txnDate = timestamp.toDate();
-            // Initialize payload with calculated totals
-            const transactionData = { ...data, totalAmount: calculatedTotal };
-            const year = txnDate.getFullYear().toString().substr(-2);
-            let prefix = 'TXN';
-            if (type === 'PURCHASE_RECEIVE') prefix = 'RCV';
-            else if (type === 'COLD_STORAGE_IN') prefix = 'PRD'; // Production
-            else if (type === 'EXPENSE') prefix = 'EXP';
-            else if (type === 'SALE_INVOICE') prefix = 'INV';
-            else if (type === 'LOCAL_SALE') prefix = 'SLD';
-
-            const locCode = locationId ? locationId.substring(0, 3).toUpperCase() : 'GEN';
-            const counterId = `${prefix}_${locCode}_${year}`;
-            const counterRef = db.doc(`counters/${counterId}`);
-
-            const HQ_WALLET_ID = 'HQ';
-            const locationRef = db.doc(`locations/${locationId}/units/${unitId}`);
-
-            // === 1. PRE-READS (Must be before any writes in Firestore Txn) ===
-            const counterDoc = await t.get(counterRef);
-
-            // Resolve Wallets Logic
-            let sourceWalletId = null;
-            let targetWalletId = null;
-            let walletReads = [];
-
-            if (type === 'CASH_TRANSFER') {
-                if (transferDirection === 'IN') {
-                    // HQ -> Unit
-                    sourceWalletId = HQ_WALLET_ID;
-                    targetWalletId = unitId;
-                } else { // OUT
-                    // Unit -> HQ
-                    sourceWalletId = unitId;
-                    targetWalletId = HQ_WALLET_ID;
-                }
-                if (sourceWalletId === targetWalletId) throw new HttpsError('invalid-argument', 'Self-transfer blocked.');
-            } else if (type === 'BANK_DEPOSIT') {
-                targetWalletId = HQ_WALLET_ID;
-            } else if (walletImpact !== 0) {
-                // Expense/Sale/Purchase
-                targetWalletId = unitId;
-            }
-
-            let sourceWalletDoc = null;
-            let targetWalletDoc = null;
-
-            if (sourceWalletId) sourceWalletDoc = await t.get(db.doc(`site_wallets/${sourceWalletId}`));
-            if (targetWalletId) targetWalletDoc = await t.get(db.doc(`site_wallets/${targetWalletId}`));
-
-            // Stock Reads
-            let coldStockDoc = null;
-            let rawStockDoc = null;
-            const coldStockRef = locationRef.collection('stock').doc(`COLD_${itemId}_${stockGrade}`);
-            const rawStockRef = locationRef.collection('stock').doc(`RAW_${itemId}`);
-
-            if (stockImpactCold < 0) coldStockDoc = await t.get(coldStockRef);
-            if (stockImpactRaw < 0) rawStockDoc = await t.get(rawStockRef);
-
-
-            // === 2. VALIDATION & CALCULATIONS ===
-            const currentSeq = counterDoc.exists ? (counterDoc.data().seq || 0) : 0;
-            const newSeq = currentSeq + 1;
-            const paddedSeq = newSeq.toString().padStart(4, '0');
-            const serialNumber = `${prefix}-${locCode}-${year}-${paddedSeq}`;
-
-            // Wallet Validations
-            if (sourceWalletId) {
-                if (!sourceWalletDoc.exists) throw new HttpsError('failed-precondition', `Source Wallet ${sourceWalletId} not found.`);
-                const current = sourceWalletDoc.data().balance || 0;
-                // Allow negative for HQ? Spec says "No negative balances" for Locations. Maybe HQ can go negative (Debt)?
-                // Let's enforce strictly except for HQ if we want to allow overdraft.
-                // Spec says: "Prevent sourceBalance < amount (no negative balances)" - Enforce for ALL.
-                if (current < amount) {
-                    throw new HttpsError('failed-precondition', `Insufficient funds in ${sourceWalletId}. Available: ${current}`);
-                }
-            }
-
-            // Stock Validations
-            if (stockImpactCold < 0) {
-                const currentStock = coldStockDoc.exists ? (coldStockDoc.data().quantityKg || 0) : 0;
-                if (currentStock + stockImpactCold < 0) throw new HttpsError('failed-precondition', `Insufficient Cold Stock.`);
-            }
-            if (stockImpactRaw < 0) {
-                const currentRaw = rawStockDoc.exists ? (rawStockDoc.data().quantityKg || 0) : 0;
-                if (currentRaw + stockImpactRaw < 0) throw new HttpsError('failed-precondition', `Insufficient RAW Stock.`);
-            }
-
-
-            // === 3. WRITES (Atomic Batch) ===
-            t.set(counterRef, { seq: newSeq }, { merge: true });
-
-            // Wallet Writes
-            const ts = admin.firestore.FieldValue.serverTimestamp();
-
-            if (sourceWalletId) {
-                t.update(db.doc(`site_wallets/${sourceWalletId}`), {
-                    balance: admin.firestore.FieldValue.increment(-amount),
-                    updatedAt: ts
-                });
-            }
-
-            if (targetWalletId) {
-                const targetRef = db.doc(`site_wallets/${targetWalletId}`);
-                if (!targetWalletDoc.exists) {
-                    t.set(targetRef, {
-                        balance: amount || walletImpact, // Use amount for Transfer, or walletImpact for others
-                        locationId: targetWalletId === HQ_WALLET_ID ? null : targetWalletId,
-                        type: targetWalletId === HQ_WALLET_ID ? 'HQ' : 'LOCATION',
-                        updatedAt: ts
-                    });
-                } else {
-                    t.update(targetRef, {
-                        balance: admin.firestore.FieldValue.increment(type === 'CASH_TRANSFER' ? amount : walletImpact),
-                        updatedAt: ts
-                    });
-                }
-            }
-
-            // Ledger Metadata
-            if (type === 'CASH_TRANSFER') {
-                Object.assign(transactionData, { sourceWalletId, targetWalletId });
-            }
-
-            // Stock Writes
-            if (stockImpactCold !== 0) {
-                t.set(coldStockRef, {
-                    quantityKg: admin.firestore.FieldValue.increment(stockImpactCold),
-                    grade: stockGrade,
-                    updatedAt: timestamp
-                }, { merge: true });
-            }
-            if (stockImpactRaw !== 0) {
-                t.set(rawStockRef, {
-                    quantityKg: admin.firestore.FieldValue.increment(stockImpactRaw),
-                    updatedAt: timestamp
-                }, { merge: true });
-            }
-
-
-
-            // Commit Transaction Record
-            t.set(transactionRef, {
-                ...transactionData,
-                serialNumber: serialNumber,
-                timestamp: timestamp,
-                serverTimestamp: timestamp,
-                userId: context.auth.uid,
-                finalized: true,
-                skipAudit: !!skipAudit
-            });
-
-            // Audit
-            const auditRef = db.collection('audit_logs').doc();
-            t.set(auditRef, {
-                originalTransactionId: transactionRef.id,
-                action: type,
-                performedBy: context.auth.uid,
-                timestamp: timestamp,
-                details: {
-                    total: calculatedTotal,
-                    walletDelta: walletImpact,
-                    stockRawDelta: stockImpactRaw,
-                    stockColdDelta: stockImpactCold
-                }
-            });
-        });
-
-        return {
-            success: true,
-            id: transactionRef.id,
-            total: calculatedTotal,
-            message: 'Transaction processed successfully'
-        };
-
-    } catch (error) {
-        console.error("Transaction Error", error);
-        throw new HttpsError('internal', error.message);
-    }
+    return await handleTransactionInternal(request.data, request.auth);
 });
+
+exports.handleTransactionInternal = handleTransactionInternal;
 
 /**
  * repairSystemWallets
@@ -454,8 +74,19 @@ exports.repairSystemWallets = onCall(async (request) => {
     const batch = db.batch();
     const log = [];
 
-    // 1. Reset Wallets (Known Locations + HQ)
-    const targets = ['HQ', 'jakarta', 'kaimana', 'saumlaki'];
+    // 1. Reset Wallets (Consistent with Unit-Level logic)
+    const unitsSnap = await db.collectionGroup('units').get();
+    const targets = ['HQ'];
+    const balances = { HQ: 0 };
+
+    for (const doc of unitsSnap.docs) {
+        const uId = doc.id;
+        const lId = doc.ref.parent.parent.id;
+        const walletKey = `${lId}_${uId}`;
+        targets.push(walletKey);
+        balances[walletKey] = 0;
+    }
+
     for (const t of targets) {
         batch.set(db.doc(`site_wallets/${t}`), {
             balance: 0,
@@ -468,40 +99,34 @@ exports.repairSystemWallets = onCall(async (request) => {
     const snap = await db.collection('transactions').orderBy('timestamp', 'asc').get();
     const txns = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // In-memory calculator to avoid 500 max batch limits if we were writing every inc/dec
-    // Actually we can write the final state? 
-    // No, let's write the final state at the end.
-    const balances = { HQ: 0, jakarta: 0, kaimana: 0, saumlaki: 0 };
-
     for (const txn of txns) {
         const amt = parseFloat(txn.amount || txn.totalAmount || 0);
-        const locId = txn.locationId || 'HQ';
+        const locId = (txn.locationId || '').toLowerCase();
+        const unitId = (txn.unitId || '').toLowerCase();
+        const walletId = (locId && unitId) ? `${locId}_${unitId}` : 'HQ';
 
         if (txn.type === 'CASH_TRANSFER') {
-            // Assume 'IN' means HQ -> Loc
             if (txn.transferDirection === 'IN') {
-                // Historical logic only added to Loc. We must now SUBTRACT from HQ.
-                balances[locId] = (balances[locId] || 0) + amt;
+                balances[walletId] = (balances[walletId] || 0) + amt;
                 balances['HQ'] = (balances['HQ'] || 0) - amt;
             } else if (txn.transferDirection === 'OUT') {
-                balances[locId] = (balances[locId] || 0) - amt;
+                balances[walletId] = (balances[walletId] || 0) - amt;
                 balances['HQ'] = (balances['HQ'] || 0) + amt;
             }
         } else if (txn.type === 'BANK_DEPOSIT' || txn.title === 'Seed Capital') {
             balances['HQ'] = (balances['HQ'] || 0) + amt;
         } else if (txn.paymentMethod === 'cash') {
-            // Expense or Purchase
-            // Deduct from Loc
-            if (txn.type === 'EXPENSE' || txn.type === 'PURCHASE_RECEIVE') {
-                balances[locId] = (balances[locId] || 0) - amt;
+            if (txn.type === 'EXPENSE' || txn.type === 'PURCHASE_RECEIVE' || txn.type === 'TRANSPORT') {
+                balances[walletId] = (balances[walletId] || 0) - amt;
             } else if (txn.type === 'LOCAL_SALE') {
-                balances[locId] = (balances[locId] || 0) + amt;
+                balances[walletId] = (balances[walletId] || 0) + amt;
             }
         }
     }
 
     // 3. Write Balances
     for (const [key, val] of Object.entries(balances)) {
+        if (!targets.includes(key)) continue; // Skip orphaned keys
         batch.update(db.doc(`site_wallets/${key}`), { balance: val, verified: true });
         log.push(`${key}: ${val}`);
     }

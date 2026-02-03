@@ -70,10 +70,12 @@ exports.seedRealisticData = onRequest({ region: "asia-southeast1", timeoutSecond
     for (const loc of locs) {
         batch.set(db.collection('locations').doc(loc.id), { label: loc.label, active: true }, { merge: true });
         for (const unitId of loc.units) {
+            const walletId = `${loc.id}_${unitId}`;
             // Seed wallet with ample cash
-            batch.set(db.doc(`site_wallets/${unitId}`), {
+            batch.set(db.doc(`site_wallets/${walletId}`), {
                 balance: 100000000, // 100 Juta start
                 locationId: loc.id,
+                unitId: unitId,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
         }
