@@ -713,6 +713,11 @@ exports.injectDay1 = onRequest(async (req, res) => {
 const api = require("./api");
 exports.getFinancialRequests = api.getFinancialRequests;
 
+const userManagement = require('./user_management');
+exports.createUser = userManagement.createUser;
+exports.listUsers = userManagement.listUsers;
+exports.deleteUser = userManagement.deleteUser;
+
 /**
  * adminFixAuth
  * EMERGENCY ONLY: Resets/Creates the simulation users for Phase 6.

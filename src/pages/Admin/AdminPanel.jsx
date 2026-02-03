@@ -81,7 +81,7 @@ function UsersManager({ showToast }) {
 
     // Form State (Creation)
     const [newUser, setNewUser] = useState({
-        email: '', password: 'Password123!', name: '', role: 'site_user', locationId: '', unitId: '', phone: ''
+        email: '', password: 'Password123!', name: '', role_v2: 'UNIT_OP', locationId: '', unitId: '', phone: ''
     });
     const [creating, setCreating] = useState(false);
 
@@ -127,18 +127,17 @@ function UsersManager({ showToast }) {
         e.preventDefault();
         setCreating(true);
         try {
-            const createSystemUser = httpsCallable(functions, 'createSystemUser');
-            await createSystemUser({
+            const createUserFunc = httpsCallable(functions, 'createUser');
+            await createUserFunc({
                 email: newUser.email,
                 password: newUser.password,
                 displayName: newUser.name,
-                role: newUser.role,
-                locationId: newUser.locationId,
-                unitId: newUser.unitId || '',
-                phone: newUser.phone || '' // Pass phone to backend
+                role_v2: newUser.role_v2,
+                locationId: newUser.locationId || '',
+                unitId: newUser.unitId || ''
             });
             showToast(`User ${newUser.email} created successfully!`);
-            setNewUser({ email: '', password: 'Password123!', name: '', role: 'site_user', locationId: '', unitId: '', phone: '' });
+            setNewUser({ email: '', password: 'Password123!', name: '', role_v2: 'UNIT_OP', locationId: '', unitId: '', phone: '' });
         } catch (error) {
             console.error("Creation Failed", error);
             showToast(error.message, 'error');
@@ -186,18 +185,17 @@ function UsersManager({ showToast }) {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                        <select className="p-2 border rounded" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
-                            <option value="site_user">Site User</option>
-                            <option value="unit_admin">Unit Admin</option>
-                            <option value="location_admin">Loc Admin</option>
-                            <option value="viewer">Viewer</option>
-                            <option value="admin">System Admin</option>
+                        <select className="p-2 border rounded" value={newUser.role_v2} onChange={e => setNewUser({ ...newUser, role_v2: e.target.value })}>
+                            <option value="UNIT_OP">Unit Operator</option>
+                            <option value="LOC_MANAGER">Location Manager</option>
+                            <option value="HQ_ADMIN">HQ Admin</option>
+                            <option value="INVESTOR">Investor (Read-Only)</option>
                         </select>
                         <select
                             className="p-2 border rounded"
                             value={newUser.locationId}
                             onChange={e => setNewUser({ ...newUser, locationId: e.target.value, unitId: '' })}
-                            disabled={newUser.role === 'admin'}
+                            disabled={newUser.role_v2 === 'HQ_ADMIN'}
                         >
                             <option value="">Global Location</option>
                             {Object.values(LOCATIONS).map(loc => <option key={loc.id} value={loc.id}>{loc.label}</option>)}
