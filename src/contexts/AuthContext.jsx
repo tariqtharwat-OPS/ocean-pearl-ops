@@ -31,10 +31,10 @@ export function AuthProvider({ children }) {
 
                         // BACKFILL: Ensure role_v2 exists from legacy role if missing
                         if (!userData.role_v2 && userData.role) {
-                            const r = userData.role;
-                            if (r === 'admin') userData.role_v2 = 'HQ_ADMIN';
-                            else if (r === 'manager' || r === 'location_admin') userData.role_v2 = 'LOC_MANAGER';
-                            else if (r === 'operator' || r === 'site_user' || r === 'unit_admin') userData.role_v2 = 'UNIT_OP';
+                            const r = userData.role.toLowerCase();
+                            if (r === 'admin' || r === 'ceo' || r === 'hq') userData.role_v2 = 'HQ_ADMIN';
+                            else if (r === 'manager' || r === 'location_admin' || r === 'loc_manager') userData.role_v2 = 'LOC_MANAGER';
+                            else if (r === 'operator' || r === 'site_user' || r === 'unit_admin' || r === 'unit_op') userData.role_v2 = 'UNIT_OP';
                         }
 
                         const fullUser = { uid: user.uid, email: user.email, ...userData };

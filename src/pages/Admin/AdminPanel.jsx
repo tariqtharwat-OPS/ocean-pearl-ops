@@ -21,7 +21,10 @@ export default function AdminPanel() {
         setTimeout(() => setToast(null), 3000);
     };
 
-    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'location_admin')) {
+    const { role_v2 } = currentUser || {};
+    const hasAdminAccess = role_v2 === 'HQ_ADMIN' || role_v2 === 'LOC_MANAGER' || currentUser?.role === 'admin' || currentUser?.role === 'ceo';
+
+    if (!currentUser || !hasAdminAccess) {
         return <div className="p-4 text-red-500">Access Denied: Admin or Manager Access Required</div>;
     }
 
@@ -127,7 +130,7 @@ function UsersManager({ showToast }) {
         e.preventDefault();
         setCreating(true);
         try {
-            const createUserFunc = httpsCallable(functions, 'createUser');
+            const createUserFunc = httpsCallable(functions, 'createSystemUser');
             await createUserFunc({
                 email: newUser.email,
                 password: newUser.password,

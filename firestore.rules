@@ -15,8 +15,10 @@ service cloud.firestore {
 
     // ADMIN OVERRIDES
     function isAdmin() {
-       return request.auth.token.role == 'admin' || 
-              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+       let data = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+       return data.role == 'admin' || 
+              data.role == 'ceo' ||
+              request.auth.token.role == 'admin' ||
               request.auth.token.email == 'info@oceanpearlseafood.com';
     }
 
