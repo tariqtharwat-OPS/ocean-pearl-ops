@@ -731,10 +731,19 @@ exports.adminFixAuth = onRequest(async (req, res) => {
 
     const users = [
         {
+            email: 'admin@oceanpearlseafood.com',
+            password: 'OceanPearl2026!',
+            role: 'admin',
+            role_v2: 'HQ_ADMIN',
+            locationId: null,
+            unitId: null,
+            displayName: 'HQ Admin'
+        },
+        {
             email: 'manager_kaimana@ops.com',
             password: 'OpsKaimana2026!',
             role: 'manager',
-            role_v2: 'location_manager',
+            role_v2: 'LOC_MANAGER',
             locationId: 'kaimana',
             unitId: null,
             displayName: 'Pak Budi (Manager)'
@@ -743,7 +752,7 @@ exports.adminFixAuth = onRequest(async (req, res) => {
             email: 'operator_kaimana@ops.com',
             password: 'OpsTeri2026!',
             role: 'operator',
-            role_v2: 'unit_operator',
+            role_v2: 'UNIT_OP',
             locationId: 'kaimana',
             unitId: 'gudang_ikan_teri',
             displayName: 'Usi (Operator)'
