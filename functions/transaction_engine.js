@@ -13,7 +13,7 @@ async function handleTransactionInternal(data, auth, bypassRbac = false) {
     }
 
     // Use LET to allow overriding by RBAC
-    let { type, locationId, unitId, itemId, quantityKg, pricePerKg, gradeId, supplyType, rawUsedKg, paymentMethod, amount, transferDirection, description, customDate, skipAudit } = data;
+    let { type, locationId, unitId, itemId, quantityKg, pricePerKg, gradeId, supplyType, rawUsedKg, paymentMethod, amount, transferDirection, description, customDate, skipAudit, supplierId, buyerId } = data;
 
     // Timestamp Logic
     let timestamp;
@@ -100,6 +100,10 @@ async function handleTransactionInternal(data, auth, bypassRbac = false) {
             calculatedTotal = amount || 0;
             if (calculatedTotal <= 0) throw new HttpsError('invalid-argument', 'Expense amount must be positive.');
             if (paymentMethod === 'cash') walletImpact = -calculatedTotal;
+            // T6: If credit/pending and partner provided, it increases debt
+            if ((paymentMethod === 'credit' || paymentMethod === 'pending') && supplierId) {
+                // Handled in PARTNER LEDGER block below
+            }
             break;
 
         case 'SALE_INVOICE':
@@ -188,9 +192,49 @@ async function handleTransactionInternal(data, auth, bypassRbac = false) {
         if (sourceWalletId) t.update(db.doc(`site_wallets/${sourceWalletId}`), { balance: admin.firestore.FieldValue.increment(-(Math.abs(walletImpact || amount))), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         if (targetWalletId) t.set(db.doc(`site_wallets/${targetWalletId}`), { balance: admin.firestore.FieldValue.increment(Math.abs(walletImpact || amount)), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
-        if (stockImpactCold !== 0) t.set(sourceStockRef, { quantityKg: admin.firestore.FieldValue.increment(stockImpactCold), grade: stockGrade, updatedAt: timestamp }, { merge: true });
+        if (stockImpactCold !== 0) {
+            const updatePayload = {
+                quantityKg: admin.firestore.FieldValue.increment(stockImpactCold),
+                grade: stockGrade,
+                updatedAt: timestamp
+            };
+            // Support Box Count (If provided in transaction)
+            if (data.boxCount !== undefined) {
+                // If adding stock, add boxes. If removing (Sales), subtract.
+                // Logic: type determines sign?
+                // For COLD_STORAGE_IN: positive boxCount
+                // For SALE_INVOICE: negative boxCount (if provided?)
+                // Usually sales just deduct weight, but if boxCount provided we should deduct it.
+                // However, handleTransactionInternal logic for stockImpactCold is signed.
+                // Let's assume data.boxCount is the MAGNITUDE.
+                // If stockImpactCold is negative, we negate boxCount.
+                let boxImpact = parseInt(data.boxCount) || 0;
+                if (stockImpactCold < 0) boxImpact = -Math.abs(boxImpact);
+                else boxImpact = Math.abs(boxImpact);
+
+                updatePayload.boxCount = admin.firestore.FieldValue.increment(boxImpact);
+            }
+            t.set(sourceStockRef, updatePayload, { merge: true });
+        }
         if (stockImpactRaw !== 0) t.set(rawStockRef, { quantityKg: admin.firestore.FieldValue.increment(stockImpactRaw), updatedAt: timestamp }, { merge: true });
         if (isTransport) t.set(targetStockRef, { quantityKg: admin.firestore.FieldValue.increment(quantityKg), grade: stockGrade, updatedAt: timestamp }, { merge: true });
+
+        // --- PARTNER LEDGER (V2) ---
+        if ((type === 'PURCHASE_RECEIVE' || type === 'EXPENSE') && (paymentMethod === 'pending' || paymentMethod === 'credit') && supplierId) {
+            t.set(db.doc(`partners/${supplierId}`), {
+                balance: admin.firestore.FieldValue.increment(calculatedTotal), // Increases debt TO supplier
+                lastTransactionAt: timestamp
+            }, { merge: true });
+        }
+        if ((type === 'SALE_INVOICE' || type === 'LOCAL_SALE') && buyerId) {
+            const isCash = paymentMethod === 'cash';
+            if (!isCash) {
+                t.set(db.doc(`partners/${buyerId}`), {
+                    balance: admin.firestore.FieldValue.increment(calculatedTotal), // Increases debt FROM buyer
+                    lastTransactionAt: timestamp
+                }, { merge: true });
+            }
+        }
 
         t.set(transactionRef, { ...transactionData, serialNumber, timestamp, serverTimestamp: timestamp, userId: bypassRbac ? 'SYSTEM' : auth.uid, finalized: true, skipAudit: !!skipAudit });
 

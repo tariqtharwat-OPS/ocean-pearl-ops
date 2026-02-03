@@ -14,7 +14,6 @@ import ReportsViewer from './pages/Reports/ReportsViewer';
 import WalletManager from './pages/WalletManager';
 import BulkImport from './pages/BulkImport';
 const SharkPage = React.lazy(() => import('./pages/SharkPage'));
-import DashboardV1 from './pages/Admin/DashboardV1';
 import NotFound from './pages/NotFound';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
@@ -107,11 +106,6 @@ function AppRoutes() {
                     </PrivateRoute>
                 } />
 
-                <Route path="/dashboard-v1" element={
-                    <PrivateRoute allowedRoles={ADMIN_ONLY}>
-                        <DashboardV1 />
-                    </PrivateRoute>
-                } />
 
                 {/* Admin Only */}
                 <Route path="/admin" element={

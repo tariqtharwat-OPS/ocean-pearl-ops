@@ -4,13 +4,12 @@ import { Truck, DollarSign, Snowflake, Activity, BarChart3, Globe, Users } from 
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import DashboardV1 from './Admin/DashboardV1';
-
+import CommandCenter from './CommandCenter';
 import { LOCATIONS, UNITS } from '../lib/constants';
 
 // LEVEL 3: GLOBAL VIEW (Root Admin)
 function AdminGlobalView() {
-    return <DashboardV1 />;
+    return <CommandCenter />;
 }
 
 function RecentTransactions({ locationId, unitId }) {

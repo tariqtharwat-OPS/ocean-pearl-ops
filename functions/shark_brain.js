@@ -252,7 +252,8 @@ Analyze this transaction:
 ${JSON.stringify(txn, null, 2)}
 
 Context Rules:
-- Yields < 40% in Production are CRITICAL.
+- Yields < 40% in Production (COLD_STORAGE_IN) are CRITICAL.
+- If type is COLD_STORAGE_IN: Check 'quantityKg' vs 'rawUsedKg'. Yield = (quantityKg / rawUsedKg) * 100.
 - Prices must be market reasonable.
 - Expenses > 5M IDR need approval.
 - Cash payments > 10M IDR are suspicious.

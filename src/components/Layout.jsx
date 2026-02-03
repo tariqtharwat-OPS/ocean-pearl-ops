@@ -78,7 +78,6 @@ export default function Layout() {
 
     // 3. HQ ADMIN SUITE (and Legacy Root)
     else if (isHQ || isLegacyAdmin) {
-        navItems.push({ to: '/dashboard-v1', icon: Globe, label: t('command') });
         navItems.push({ to: '/wallet', icon: DollarSign, label: t('treasury') });
         navItems.push({ to: '/reports', icon: BarChart3, label: t('reports') });
         navItems.push({ to: '/admin', icon: Settings, label: t('admin') });

@@ -1,8 +1,10 @@
 
-// -- GLOBAL CONSTANTS --
+// -- GLOBAL CONSTANTS (V2 Blueprint Compliant) --
 
 export const ITEM_TYPES = {
-    SEAFOOD: 'seafood',
+    RAW_FISH: 'raw_material',
+    PROCESSED_FISH: 'finished_product',
+    BY_PRODUCT: 'by_product',
     MATERIAL: 'material'
 };
 
@@ -14,10 +16,12 @@ export const EXPENSE_CATEGORIES = [
     'Maintenance',
     'Logistics',
     'Meals',
+    'Electricity',
+    'Packaging',
     'Other'
 ];
 
-export const GRADES = ['A', 'B', 'C', 'Reject', 'Mix'];
+export const GRADES = ['A', 'B', 'C', 'Reject', 'Mix', 'NA'];
 
 // -- SIZE CONFIGURATION --
 export const SIZE_CONFIG = {
@@ -27,14 +31,13 @@ export const SIZE_CONFIG = {
     snapper: ['0.3-0.5 kg', '0.5-1 kg', '1-3 kg', '3 kg up'],
     shrimp: ['Size 10', 'Size 15', 'Size 20', 'Size 25', 'Size 30', 'Size 40', 'Mix'],
     octopus: ['0.3-0.5 kg', '0.5-1 kg', '1 kg up'],
-    small_fish: ['100g up', '200g up', '300g up', 'Mix'], // Ikor kuning etc
+    small_fish: ['100g up', '200g up', '300g up', 'Mix'],
     general: ['0.3-0.5 kg', '0.5-1 kg', '1-3 kg', '3-5 kg', '5-10 kg', '10 kg up']
 };
 
 export const getSizeList = (itemId) => {
     if (!itemId) return SIZE_CONFIG.general;
     const lower = itemId.toLowerCase();
-
     if (lower.includes('tuna')) return SIZE_CONFIG.tuna;
     if (lower.includes('tenggiri') || lower.includes('wahoo') || lower.includes('kingfish')) return SIZE_CONFIG.tenggiri;
     if (lower.includes('kerapu') || lower.includes('grouper') || lower.includes('sunu')) return SIZE_CONFIG.grouper;
@@ -42,61 +45,40 @@ export const getSizeList = (itemId) => {
     if (lower.includes('shrimp') || lower.includes('vaname') || lower.includes('udang')) return SIZE_CONFIG.shrimp;
     if (lower.includes('gurita') || lower.includes('octopus') || lower.includes('sontong')) return SIZE_CONFIG.octopus;
     if (lower.includes('ikor') || lower.includes('pisang')) return SIZE_CONFIG.small_fish;
-
     return SIZE_CONFIG.general;
 };
 
-// -- LOCATIONS (Restored) --
-// -- LOCATIONS (Restored & Enhanced) --
-// -- LOCATIONS (Synced with DB Reality) --
-// Direct capability arrays to avoid circular dependency with UNIT_TEMPLATES
-
+// -- LOCATIONS (V2 Core) --
 export const LOCATIONS = {
     jakarta: {
         id: 'jakarta',
         label: 'HQ Jakarta',
         units: [
-            { id: 'office', label: 'Office', type: 'OFFICE', capabilities: [] },
-            { id: 'cold_storage', label: 'Cold Storage', type: 'COLD_STORAGE', capabilities: ['receiving', 'storage', 'sales'] }
+            { id: 'hq_office', label: 'HQ Office', type: 'ADMIN' },
+            { id: 'jk_cold_storage', label: 'Jakarta Cold Storage', type: 'COLD_STORAGE' },
+            { id: 'jk_transport', label: 'Jakarta Transport', type: 'LOGISTICS' }
         ]
     },
     kaimana: {
         id: 'kaimana',
         label: 'Kaimana',
         units: [
-            { id: 'gudang_ikan_teri', label: 'Gudang Ikan Teri', type: 'PROCESSING_DRY', capabilities: ['receiving', 'processing', 'storage', 'sales'] },
-            { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: ['receiving', 'processing', 'storage', 'sales'] }
+            { id: 'kn_warehouse', label: 'Kaimana Warehouse', type: 'STATIONARY_UNIT' },
+            { id: 'kn_factory', label: 'Kaimana Factory', type: 'FACTORY' },
+            { id: 'kn_boats', label: 'Kaimana Boats', type: 'MOBILE_UNIT' },
+            { id: 'kn_transport', label: 'Kaimana Transport', type: 'LOGISTICS' }
         ]
     },
     saumlaki: {
         id: 'saumlaki',
         label: 'Saumlaki',
         units: [
-            { id: 'frozen_fish', label: 'Frozen Fish', type: 'FROZEN_FACTORY', capabilities: ['receiving', 'processing', 'storage', 'sales'] }
+            { id: 'sl_warehouse', label: 'Saumlaki Warehouse', type: 'STATIONARY_UNIT' },
+            { id: 'sl_factory', label: 'Saumlaki Factory', type: 'FACTORY' },
+            { id: 'sl_boats', label: 'Saumlaki Boats', type: 'MOBILE_UNIT' }
         ]
     }
 };
-
-// -- UNITS MAP (Legacy Support / Quick Lookup) --
-export const UNITS = {
-    office: 'Jakarta Office',
-    gudang_teri: 'Gudang Ikan Teri',
-    frozen_factory: 'Frozen Seafood Kaimana',
-    frozen_factory_sml: 'Frozen Seafood Saumlaki'
-};
-
-
-// -- INITIAL CATALOG (Fallback) --
-export const INITIAL_CATALOG = [
-    { id: 'tuna_yellowfin', label: 'Yellowfin Tuna', type: 'seafood', allowedLocations: ['kaimana', 'saumlaki'] },
-    { id: 'tuna_skipjack', label: 'Skipjack Tuna', type: 'seafood', allowedLocations: ['kaimana', 'saumlaki'] },
-    { id: 'shrimp_vaname', label: 'Vaname Shrimp', type: 'seafood', allowedLocations: ['saumlaki'] },
-    { id: 'anchovy_teri', label: 'Anchovy (Ikan Teri)', type: 'seafood', allowedLocations: ['kaimana'] },
-    { id: 'octopus', label: 'Octopus', type: 'seafood', allowedLocations: ['kaimana'] },
-    { id: 'seaweed', label: 'Seaweed', type: 'seafood', allowedLocations: ['saumlaki'] },
-    { id: 'ice_blocks', label: 'Ice Blocks', type: 'material', allowedLocations: [] },
-    { id: 'salt_bags', label: 'Salt (50kg)', type: 'material', allowedLocations: [] },
-];
 
 // -- PROCESSING RULES --
 export const PROCESSING_CONFIG = {
@@ -142,5 +124,6 @@ export const getProcessingRules = (itemId) => {
     return PROCESSING_CONFIG.default;
 };
 
-// Backwards compatibility - export at end to ensure SIZE_CONFIG is initialized
+// Legacy support
+export const UNITS = {};
 export const SIZES = SIZE_CONFIG.general;

@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
                             uid: user.uid,
                             email: user.email,
                             role: 'admin',
-                            role_v2: 'GLOBAL_ADMIN',
+                            role_v2: 'HQ_ADMIN',
                             locationId: 'jakarta',
                             displayName: 'CEO'
                         };

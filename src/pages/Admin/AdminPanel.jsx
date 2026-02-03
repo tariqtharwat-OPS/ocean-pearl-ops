@@ -1223,6 +1223,7 @@ function PartnersManager({ showToast }) {
                                 <option value="buy_agent">Buying Agent</option>
                                 <option value="sell_agent">Selling Agent</option>
                                 <option value="logistics">Logistics Provider</option>
+                                <option value="investor">Investor Partner</option>
                             </select>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
@@ -1390,7 +1391,7 @@ function LocationsManager() {
                 batch.set(ref, { id: locData.id, label: locData.label, units: dbUnits }, { merge: true });
             });
             await batch.commit();
-            showToast("Locations synchronized with Standard Architecture.");
+            showToast("Locations synchronized with V2 Target Blueprint.");
             fetchLocations();
         } catch (e) {
             console.error(e);

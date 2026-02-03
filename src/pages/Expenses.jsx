@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTransactionQueue } from '../contexts/TransactionQueueContext';
 import { db } from '../lib/firebase';
 import {
     collection, query, where, orderBy, onSnapshot,
@@ -19,10 +20,12 @@ export default function Expenses() {
     const { currentUser, ceoMode } = useAuth();
     const authContext = useAuth();
     const { guardWrite, isReadOnly } = useWriteGuard(authContext);
+    const { addTransaction } = useTransactionQueue();
 
     // -- STATE --
     const [expenses, setExpenses] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [processing, setProcessing] = useState(false); // Added processing state
     const [view, setView] = useState('list'); // 'list' | 'create' | 'edit'
     const [selectedExpense, setSelectedExpense] = useState(null);
 
@@ -202,8 +205,23 @@ export default function Expenses() {
                 payload.createdAt = serverTimestamp();
                 payload.createdBy = currentUser.uid;
                 payload.createdByName = currentUser.displayName || currentUser.email;
-                await addDoc(collection(db, 'expenses'), payload);
+                const newDoc = await addDoc(collection(db, 'expenses'), payload);
                 toast.success("Expense Created");
+
+                // --- FINANCIAL MUTATION (V2) ---
+                if (payload.status === 'APPROVED') {
+                    await addTransaction({
+                        type: 'EXPENSE',
+                        locationId: payload.locationId,
+                        unitId: payload.unitId,
+                        supplierId: payload.vendorId, // Using vendorId as supplierId for ledger
+                        amount: payload.amount,
+                        paymentMethod: payload.paymentMethod.toLowerCase(), // 'cash' or 'credit'
+                        description: `Expense: ${payload.notes}`,
+                        itemId: payload.expenseTypeId, // Mapping expense type to item for ledger tracking
+                        customDate: payload.expenseDate
+                    });
+                }
             }
             setIsDirty(false); // Clear guard
             setView('list');
@@ -216,7 +234,9 @@ export default function Expenses() {
     const handleApproveReject = async (ex, action) => {
         const canProceed = await guardWrite(authContext, `${action} Expense`);
         if (!canProceed) return;
+        if (processing) return;
 
+        setProcessing(true);
         const newStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
         try {
             await updateDoc(doc(db, 'expenses', ex.id), {
@@ -224,9 +244,26 @@ export default function Expenses() {
                 [action === 'APPROVE' ? 'approvedBy' : 'rejectedBy']: currentUser.uid,
                 [action === 'APPROVE' ? 'approvedAt' : 'rejectedAt']: serverTimestamp()
             });
+
+            // --- FINANCIAL MUTATION (V2) ---
+            if (action === 'APPROVE') {
+                await addTransaction({
+                    type: 'EXPENSE',
+                    locationId: ex.locationId,
+                    unitId: ex.unitId,
+                    supplierId: ex.vendorId,
+                    amount: ex.amount,
+                    paymentMethod: ex.paymentMethod.toLowerCase(),
+                    description: `Expense: ${ex.notes}`,
+                    itemId: ex.expenseTypeId,
+                    customDate: ex.expenseDate
+                });
+            }
             toast.success(`Expense ${newStatus}`);
         } catch (e) {
-            toast.error("Action failed");
+            toast.error("Action failed: " + e.message);
+        } finally {
+            setProcessing(false);
         }
     };
 
