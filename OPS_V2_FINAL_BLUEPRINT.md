@@ -271,4 +271,94 @@ Antigravity must log:
 No undocumented changes allowed.
 
 ---
+
+### 2026-02-06 | Phase 0 – Full Clean Reset
+
+**What Changed**:
+- Tagged existing state as `v2-pre-final-wipe`
+- Created new branch `v2-final-rebuild`
+- Deleted ALL legacy code (frontend, backend, functions, tests, scripts)
+- Kept only: `OPS_V2_FINAL_BLUEPRINT.md`, `.gitignore`, `.git/`
+
+**Why**:
+- Previous implementation (`v2-clean-implementation`) violated fundamental architecture principles
+- Full wipe mandated to prevent legacy contamination
+- Clean slate required for ledger-first, function-only, traceability-first rebuild
+
+**Impact**:
+- No legacy code can be reused
+- All implementation follows Blueprint strictly
+- Never-Again Guards enforced from Day 1
+
+**Commit**: `99784b1`
+
+---
+
+### 2026-02-06 | Phase 0.5 – Failure Autopsy
+
+**What Changed**:
+- Created `OPS_V2_FAILURE_AUTOPSY.md`
+- Documented 10 failure categories from previous implementation
+- Defined 10 Never-Again Guards for enforcement
+
+**Why**:
+- Learn from past mistakes: fake success, mock architecture, missing ledger, no traceability
+- Establish permanent guard rails for v2-final-rebuild
+- Prevent repeating UI-first, optimistic-update, client-write patterns
+
+**Impact**:
+- Every Phase 1-6 decision must reference Guards
+- Violations = immediate rejection
+- Autopsy serves as permanent reference for "what NOT to do"
+
+**Commit**: `4587202`
+
+---
+
+### 2026-02-06 | Phase 1 – Core Data Model (COMPLETE)
+
+**What Changed**:
+- ✅ Firebase project structure (TypeScript, Functions v2, Node 20)
+- ✅ 10 canonical Firestore collections:
+  - Critical: `ledger_entries`, `inventory_lots`, `invoices`, `payments`, `trace_links`, `attachments`
+  - Reference: `locations`, `units`, `users`, `master_data`
+- ✅ TypeScript types + Zod validation schemas (double-entry enforcement)
+- ✅ Firestore security rules (function-only writes, scoped reads)
+- ✅ Idempotent seed script (4 locations, 37 units, 6 users, master data)
+- ✅ `docs/DATA_MODEL.md` (comprehensive documentation)
+
+**Why**:
+- Ledger-first architecture (Guard #2): No balance fields, all derived from ledger
+- Traceability-first (Guard #4): Lot genealogy, trace_links for queries
+- Function-only writes (Guard #5): Client cannot mutate critical data
+- Idempotency-first (Guard #3): `operationId` prevents duplicates
+- Backend-first (Guard #1): No UI, data model before features
+
+**Impact**:
+- Production-ready schema that enforces double-entry accounting
+- 36 boats seeded in Kaimana (20 fishing, 13 collector, 3 transport)
+- Fish Meal Plant (`kaimana-fishmeal`) ready for independence (Guard #10)
+- Role-based access: CEO, HQ_ADMIN, HQ_FINANCE, LOC_MANAGER, UNIT_OP, INVESTOR
+- Security rules prevent fake success (Guard #6)
+
+**Design Gaps Identified** (non-blocking):
+1. Wallet config collection - not needed (virtual wallets sufficient)
+2. Fisher ledger - covered by ledger_entries (no separate collection needed)
+3. Composite indexes - empty (will populate in Phase 2 when queries run)
+4. Attachment storage - Phase 2 deliverable (Cloud Storage + upload function)
+
+**Acceptance Criteria**:
+- ✅ Collections exist (10 canonical)
+- ✅ Rules block client writes (critical collections)
+- ✅ Seed idempotent (re-run safe)
+- ✅ Scoped reads (HQ all, Unit scoped, Investor read-only)
+- ✅ Zod validation (all critical schemas)
+
+**Commits**: 
+- Implementation: `8825bd9`
+- Report: `e34f8b4`
+
+**Remaining**: Phase 2 (Cloud Functions), Phase 3 (Wallet flows), Phase 4 (Traceability queries), Phase 5 (Minimal UI), Phase 6 (Acceptance Tests T1-T12)
+
+---
 END OF FILE
