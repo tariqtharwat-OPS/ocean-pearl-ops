@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && getUserDoc().role == role;
+    }
+    
+    function hasAnyRole(roles) {
+      return isAuthenticated() && getUserDoc().role in roles;
+    }
+    
+    function isHQ() {
+      return hasAnyRole(['CEO', 'HQ_ADMIN', 'HQ_FINANCE']);
+    }
+    
+    function canAccessLocation(locationId) {
+      let user = getUserDoc();
+      return user.role == 'CEO' || locationId in user.allowedLocationIds;
+    }
+    
+    function canAccessUnit(unitId) {
+      let user = getUserDoc();
+      return user.role == 'CEO' || unitId in user.allowedUnitIds;
+    }
+    
+    function isInvestorWithAccess(locationId) {
+      return hasRole('INVESTOR') && canAccessLocation(locationId);
+    }
+    
+    // ========================================================================
+    // CRITICAL COLLECTIONS - NO CLIENT WRITES (Functions only)
+    // ========================================================================
+    
+    // LEDGER ENTRIES - Double-entry accounting (FUNCTION-ONLY WRITES)
+    match /ledger_entries/{entryId} {
+      allow read: if isAuthenticated() && (
+        isHQ() || 
+        canAccessLocation(resource.data.locationId) ||
+        canAccessUnit(resource.data.unitId)
+      );
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // INVENTORY LOTS - Lot-based inventory (FUNCTION-ONLY WRITES)
+    match /inventory_lots/{lotId} {
+      allow read: if isAuthenticated() && (
+        isHQ() || 
+        canAccessLocation(resource.data.locationId) ||
+        canAccessUnit(resource.data.unitId)
+      );
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // INVOICES - AR/AP (FUNCTION-ONLY WRITES)
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && (
+        isHQ() || 
+        canAccessLocation(resource.data.locationId)
+      );
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // PAYMENTS - Payment records (FUNCTION-ONLY WRITES)
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && isHQ();
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // TRACE LINKS - Genealogy (FUNCTION-ONLY WRITES)
+    match /trace_links/{linkId} {
+      allow read: if isAuthenticated() && isHQ();
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // ATTACHMENTS - Metadata only (FUNCTION-ONLY WRITES)
+    match /attachments/{attachmentId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // ❌ NO CLIENT WRITES - Cloud Functions only
+    }
+    
+    // ========================================================================
+    // REFERENCE DATA - Scoped reads, admin writes
+    // ========================================================================
+    
+    // LOCATIONS - All users can read their allowed locations
+    match /locations/{locationId} {
+      allow read: if isAuthenticated() && (
+        isHQ() || canAccessLocation(locationId)
+      );
+      allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
+    }
+    
+    // UNITS - All users can read their allowed units
+    match /units/{unitId} {
+      allow read: if isAuthenticated() && (
+        isHQ() || canAccessUnit(unitId)
+      );
+      allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
+    }
+    
+    // USERS - Users can read their own doc, admins can manage
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || hasAnyRole(['CEO', 'HQ_ADMIN'])
+      );
+      allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
+    }
+    
+    // MASTER DATA - All users can read, admins can write
+    match /master_data/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
+    }
+    
+    // ========================================================================
+    // DEFAULT DENY ALL
+    // ========================================================================
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

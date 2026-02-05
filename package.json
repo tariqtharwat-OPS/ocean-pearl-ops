@@ -1,0 +1,16 @@
+{
+    "name": "ocean-pearl-ops-v2",
+    "version": "2.0.0",
+    "description": "Ocean Pearl Operations Management System - V2 Final Rebuild",
+    "private": true,
+    "scripts": {
+        "seed": "node --loader ts-node/esm functions/src/seed.ts"
+    },
+    "engines": {
+        "node": "20"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "typescript": "^5.3.3"
+    }
+}
