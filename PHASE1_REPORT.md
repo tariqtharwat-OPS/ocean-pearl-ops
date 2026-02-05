@@ -571,4 +571,95 @@ await db.collection('ledger_entries').add({...});
 
 ---
 
+## RAW REVIEW LINKS
+
+**Phase 1 Critical Files** (Direct RAW links for code review)
+
+### Core Implementation Files
+
+**Firestore Security Rules** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/firestore.rules
+```
+
+**Seed Script** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/functions/src/seed.ts
+```
+
+**TypeScript Types + Zod Schemas** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/functions/src/types.ts
+```
+**Contains**:
+- `LedgerEntrySchema` (double-entry validation)
+- `InventoryLotSchema` (lot genealogy)
+- `InvoiceSchema`, `PaymentSchema`, `TraceLinkSchema`
+- All enums and type definitions
+
+**Data Model Documentation** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/docs/DATA_MODEL.md
+```
+
+### Configuration Files
+
+**Firebase Project Config** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/firebase.json
+```
+
+**Firestore Indexes** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/firestore.indexes.json
+```
+
+**Functions Package Config** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/functions/package.json
+```
+
+**TypeScript Config** (commit `8825bd9`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/8825bd9/functions/tsconfig.json
+```
+
+### Blueprint & Autopsy
+
+**Final Blueprint** (commit `25d2462` - with change log):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/25d2462/OPS_V2_FINAL_BLUEPRINT.md
+```
+
+**Failure Autopsy** (commit `4587202`):
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/4587202/OPS_V2_FAILURE_AUTOPSY.md
+```
+
+---
+
+### Quick Review Checklist
+
+**Firestore Rules** (`firestore.rules`):
+- ✅ Verify: All critical collections deny client writes
+- ✅ Verify: Scoped read access by role
+- ✅ Verify: CEO/HQ_ADMIN can write master data only
+
+**Seed Script** (`seed.ts`):
+- ✅ Verify: Idempotency checks (`doc.exists`)
+- ✅ Verify: 4 locations, 37 units seeded
+- ✅ Verify: 20 fishing boats + 13 collector boats + 3 transport boats in Kaimana
+
+**Types/Schemas** (`types.ts`):
+- ✅ Verify: `LedgerEntrySchema` enforces `sum(debits) == sum(credits)`
+- ✅ Verify: `InventoryLotSchema` has `origin.sourceType` and genealogy fields
+- ✅ Verify: `operationId` required (idempotency key)
+
+**Data Model Doc** (`DATA_MODEL.md`):
+- ✅ Verify: Virtual wallet architecture explained
+- ✅ Verify: Fish Meal Plant independence documented
+- ✅ Verify: Traceability compliance (US FDA, China GACC) explained
+
+---
+
 **END OF PHASE 1 REPORT**
