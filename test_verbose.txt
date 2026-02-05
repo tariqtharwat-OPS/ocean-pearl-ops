@@ -1,0 +1,175 @@
+﻿
+Running 1 test using 1 worker
+
+[1A[2K[1/1] verify_users_playwright.spec.js:6:1 ΓÇ║ Fix and Verify Phase 2 Users (Manager, Operator, Investor)
+[1A[2Kverify_users_playwright.spec.js:6:1 ΓÇ║ Fix and Verify Phase 2 Users (Manager, Operator, Investor)
+
+--- 1. MANAGER (T06) ---
+
+[1A[2KNavigating to Login...
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:29.094Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2KEnsuring clean state for manager@kaimana.com...
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:32.249Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /admin
+
+[1A[2K[BROWSER] startGroup: ≡ƒöì AuthContext State Change
+
+[1A[2K[BROWSER] log: Active Location: global
+
+[1A[2K[BROWSER] log: Active Unit: 
+
+[1A[2K[BROWSER] log: Effective Role: HQ_ADMIN
+
+[1A[2K[BROWSER] log: CEO Mode: null
+
+[1A[2K[BROWSER] endGroup: console.groupEnd
+
+[1A[2K   User manager@kaimana.com found (1 rows)! DELETING to ensure clean state...
+
+[1A[2K   Edit Modal Visible
+
+[1A[2K   Clicking Delete...
+
+[1A[2K[DIALOG] confirm: ΓÜá∩╕Å WARNING: This will PERMANENTLY DELETE manager@kaimana.com from both Authentication and Firestore.
+
+This action CANNOT be undone!
+
+Type the user's email to confirm deletion.
+
+[1A[2K   Accepting confirmation
+
+[1A[2K[DIALOG] prompt: Type "manager@kaimana.com" to confirm permanent deletion:
+
+[1A[2K   Accepting prompt with: manager@kaimana.com
+
+[1A[2K   Delete Clicked
+
+[1A[2K[DIALOG] alert: User manager@kaimana.com has been permanently deleted.
+
+[1A[2K   Accepting confirmation
+
+[1A[2K   Modal Closed (Deletion Successful)
+
+[1A[2K   Creating fresh user manager@kaimana.com with password123...
+
+[1A[2K   Γ£à User manager@kaimana.com Created.
+
+[1A[2K   Logging in as Manager...
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /
+
+[1A[2K   Γ£à Manager Verified (Header shows correct role)
+
+[1A[2K[BROWSER] startGroup: ≡ƒöì AuthContext State Change
+
+[1A[2K[BROWSER] log: Active Location: kaimana
+
+[1A[2K[BROWSER] log: Active Unit: null
+
+[1A[2K[BROWSER] log: Effective Role: LOC_MANAGER
+
+[1A[2K[BROWSER] log: CEO Mode: null
+
+[1A[2K[BROWSER] endGroup: console.groupEnd
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /
+
+[1A[2K
+--- 2. OPERATOR (T07) ---
+
+[1A[2KNavigating to Login...
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:51.260Z]  @firebase/firestore: Firestore (12.6.0): WebChannelConnection RPC 'Listen' stream 0x51b3ea45 transport errored. Name: undefined Message: undefined
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:51.260Z]  @firebase/firestore: Firestore (12.6.0): WebChannelConnection RPC 'Listen' stream 0x51b3ea45 transport errored. Name: undefined Message: undefined
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:51.281Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:51.281Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2KEnsuring clean state for operator@kaimana.com...
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:52.076Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2K[BROWSER] warning: [2026-02-04T17:40:52.076Z]  @firebase/firestore: Firestore (12.6.0): enableIndexedDbPersistence() will be deprecated in the future, you can use `FirestoreSettings.cache` instead.
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /admin
+
+[1A[2K[BROWSER] log: ≡ƒôì Navigation updated to: /admin
+
+[1A[2K[BROWSER] startGroup: ≡ƒöì AuthContext State Change
+
+[1A[2K[BROWSER] startGroup: ≡ƒöì AuthContext State Change
+
+[1A[2K[BROWSER] log: Active Location: global
+
+[1A[2K[BROWSER] log: Active Location: global
+
+[1A[2K[BROWSER] log: Active Unit: 
+
+[1A[2K[BROWSER] log: Active Unit: 
+
+[1A[2K[BROWSER] log: Effective Role: HQ_ADMIN
+
+[1A[2K[BROWSER] log: Effective Role: HQ_ADMIN
+
+[1A[2K[BROWSER] log: CEO Mode: null
+
+[1A[2K[BROWSER] log: CEO Mode: null
+
+[1A[2K[BROWSER] endGroup: console.groupEnd
+
+[1A[2K[BROWSER] endGroup: console.groupEnd
+
+[1A[2K   Creating fresh user operator@kaimana.com with password123...
+
+[1A[2K  1) verify_users_playwright.spec.js:6:1 ΓÇ║ Fix and Verify Phase 2 Users (Manager, Operator, Investor) 
+
+    [31mTest timeout of 300000ms exceeded.[39m
+
+    Error: locator.selectOption: Test timeout of 300000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('form').filter({ hasText: 'Create User' }).locator('select').nth(2)[22m
+    [2m    - locator resolved to <select class="w-full p-2 border rounded bg-white">ΓÇª</select>[22m
+    [2m  - attempting select option action[22m
+    [2m    2 ├ù waiting for element to be visible and enabled[22m
+    [2m      - did not find some options[22m
+    [2m    - retrying select option action[22m
+    [2m    - waiting 20ms[22m
+    [2m    2 ├ù waiting for element to be visible and enabled[22m
+    [2m      - did not find some options[22m
+    [2m    - retrying select option action[22m
+    [2m      - waiting 100ms[22m
+    [2m    522 ├ù waiting for element to be visible and enabled[22m
+    [2m        - did not find some options[22m
+    [2m      - retrying select option action[22m
+    [2m        - waiting 500ms[22m
+
+
+      134 |             await page.waitForTimeout(500); // Allow Unit select to render
+      135 |             const unitSelect = createForm.locator('select').nth(2);
+    > 136 |             await unitSelect.selectOption({ label: 'Gudang Teri' });
+          |                              ^
+      137 |         }
+      138 |
+      139 |         // Setup dialog handler for "Success" or "Error" alerts just in case
+        at ensureUserExistsWithPassword (D:\OPS\verify_users_playwright.spec.js:136:30)
+        at D:\OPS\verify_users_playwright.spec.js:198:20
+
+    Error Context: test-results\verify_users_playwright-Fi-ad22e--Manager-Operator-Investor-\error-context.md
+
+
+[1A[2K  Slow test file: verify_users_playwright.spec.js (5.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    verify_users_playwright.spec.js:6:1 ΓÇ║ Fix and Verify Phase 2 Users (Manager, Operator, Investor) 

@@ -47,11 +47,11 @@ function AppRoutes() {
     const { currentUser, ceoMode } = useAuth();
 
     // Common sets
-    const ALL_OPS = ['ceo', 'admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'UNIT_OP', 'manager', 'site_user', 'operator', 'unit_admin', 'viewer', 'site_worker', 'location_manager', 'unit_operator'];
-    const ADMIN_ONLY = ['ceo', 'admin', 'hq', 'HQ_ADMIN'];
-    const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN'];
-    const REPORTS_VIEW = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_admin', 'READ_ONLY', 'viewer', 'location_manager'];
-    const TREASURY_OPS = ['admin', 'hq', 'HQ_ADMIN', 'LOC_MANAGER', 'manager', 'location_manager'];
+    const ALL_OPS = ['ceo', 'CEO', 'admin', 'hq', 'HQ_ADMIN', 'HQ_FINANCE', 'LOC_MANAGER', 'UNIT_OP', 'manager', 'site_user', 'operator', 'unit_admin', 'site_worker', 'location_manager', 'unit_operator'];
+    const ADMIN_ONLY = ['ceo', 'CEO', 'admin', 'hq', 'HQ_ADMIN'];
+    const SALES_ONLY = ['sales', 'hq', 'admin', 'HQ_ADMIN', 'CEO', 'HQ_FINANCE'];
+    const REPORTS_VIEW = ['admin', 'hq', 'HQ_ADMIN', 'HQ_FINANCE', 'LOC_MANAGER', 'manager', 'location_admin', 'READ_ONLY', 'viewer', 'location_manager', 'INVESTOR'];
+    const TREASURY_OPS = ['admin', 'hq', 'HQ_ADMIN', 'HQ_FINANCE', 'LOC_MANAGER', 'manager', 'location_manager'];
 
     // EXTENDED KEY for strict context safety
     const contextKey = `${currentUser?.locationId}_${currentUser?.unitId || 'nounit'}_${currentUser?.role_v2}_${ceoMode || 'normal'}`;

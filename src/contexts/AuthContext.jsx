@@ -15,11 +15,17 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Fetch extra user details from Firestore (Role, Location, Unit)
+                // CRITICAL: Force token refresh to get latest custom claims
                 try {
+                    const idTokenResult = await user.getIdTokenResult(true);
+                    console.log('🔑 ID Token Claims:', idTokenResult.claims);
+
+                    // Fetch extra user details from Firestore (Role, Location, Unit)
                     const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    let userData = {};
+
                     if (userDoc.exists()) {
-                        const userData = userDoc.data();
+                        userData = userDoc.data();
 
                         // SANITIZATION: Ensure IDs are strings, not objects (Fixes React Error #31)
                         if (userData.locationId && typeof userData.locationId === 'object') {
@@ -28,38 +34,46 @@ export function AuthProvider({ children }) {
                         if (userData.unitId && typeof userData.unitId === 'object') {
                             userData.unitId = userData.unitId.id || '';
                         }
-
-                        // BACKFILL: Ensure role_v2 exists from legacy role if missing
-                        if (!userData.role_v2 && userData.role) {
-                            const r = userData.role.toLowerCase();
-                            if (r === 'admin' || r === 'ceo' || r === 'hq') userData.role_v2 = 'HQ_ADMIN';
-                            else if (r === 'manager' || r === 'location_admin' || r === 'loc_manager') userData.role_v2 = 'LOC_MANAGER';
-                            else if (r === 'operator' || r === 'site_user' || r === 'unit_admin' || r === 'unit_op') userData.role_v2 = 'UNIT_OP';
-                        }
-
-                        const fullUser = { uid: user.uid, email: user.email, ...userData };
-                        setCurrentUser(fullUser);
-                        setOriginalUser(fullUser); // Store original identity
                     } else if (user.email.toLowerCase() === 'info@oceanpearlseafood.com') {
                         // EMERGENCY BOOTSTRAP: Allow root admin without DB entry
                         console.warn('Emergency Admin Login Detected');
-                        const bootstrapUser = {
-                            uid: user.uid,
-                            email: user.email,
+                        userData = {
                             role: 'admin',
                             role_v2: 'HQ_ADMIN',
                             locationId: 'jakarta',
                             displayName: 'CEO'
                         };
-                        setCurrentUser(bootstrapUser);
-                        setOriginalUser(bootstrapUser);
                     } else {
-                        console.error('User profile not found');
-                        setCurrentUser(null);
-                        setOriginalUser(null);
+                        console.error('User profile not found in Firestore');
                     }
+
+                    // MERGE custom claims from ID token with Firestore data
+                    // Custom claims take precedence over Firestore for role/location/unit
+                    const mergedUser = {
+                        uid: user.uid,
+                        email: user.email,
+                        ...userData, // Firestore data first
+                        // Override with claims if present
+                        role: idTokenResult.claims.role || userData.role || 'READ_ONLY',
+                        role_v2: idTokenResult.claims.role_v2 || userData.role_v2 || 'READ_ONLY',
+                        locationId: idTokenResult.claims.locationId || userData.locationId || null,
+                        unitId: idTokenResult.claims.unitId || userData.unitId || null
+                    };
+
+                    // BACKFILL: Ensure role_v2 exists from legacy role if still missing
+                    if (!mergedUser.role_v2 && mergedUser.role) {
+                        const r = mergedUser.role.toLowerCase();
+                        if (r === 'admin' || r === 'ceo' || r === 'hq') mergedUser.role_v2 = 'HQ_ADMIN';
+                        else if (r === 'manager' || r === 'location_admin' || r === 'loc_manager') mergedUser.role_v2 = 'LOC_MANAGER';
+                        else if (r === 'operator' || r === 'site_user' || r === 'unit_admin' || r === 'unit_op') mergedUser.role_v2 = 'UNIT_OP';
+                    }
+
+                    console.log('✅ Merged User Object:', mergedUser);
+
+                    setCurrentUser(mergedUser);
+                    setOriginalUser(mergedUser); // Store original identity
                 } catch (err) {
-                    console.error('Error fetching user profile', err);
+                    console.error('❌ Error fetching user profile or token:', err);
                     setCurrentUser(null);
                     setOriginalUser(null);
                 }
@@ -112,8 +126,8 @@ export function AuthProvider({ children }) {
 
     // Check if user is CEO/Global Admin
     const isCEO = () => {
-        return originalUser?.role === 'admin' || originalUser?.role_v2 === 'GLOBAL_ADMIN' ||
-            originalUser?.role_v2 === 'HQ_ADMIN';
+        return originalUser?.role === 'admin' || originalUser?.role?.toUpperCase() === 'CEO' || originalUser?.role_v2 === 'GLOBAL_ADMIN' ||
+            originalUser?.role_v2 === 'HQ_ADMIN' || originalUser?.role_v2 === 'CEO';
     };
 
     // Allow Admin to switch context locally (Legacy - Simple mode)

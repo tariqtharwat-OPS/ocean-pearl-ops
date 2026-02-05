@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { auth } from '../lib/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 
 export default function Login() {
     const { login } = useAuth();
@@ -11,10 +13,12 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [resetSuccess, setResetSuccess] = useState('');
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        setResetSuccess('');
         setLoading(true);
         try {
             await login(email, password);
@@ -22,6 +26,27 @@ export default function Login() {
         } catch (err) {
             console.error("Login Failed", err);
             setError(t('auth_error', 'Sign In Failed: Check your credentials.'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError('Please enter your email address first.');
+            return;
+        }
+
+        setError('');
+        setResetSuccess('');
+        setLoading(true);
+
+        try {
+            await sendPasswordResetEmail(auth, email);
+            setResetSuccess(`Password reset email sent to ${email}. Check your inbox.`);
+        } catch (err) {
+            console.error("Password reset error:", err);
+            setError(`Failed to send reset email: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -70,6 +95,13 @@ export default function Login() {
                             </div>
                         )}
 
+                        {resetSuccess && (
+                            <div className="mb-6 p-4 rounded-xl bg-green-50 border border-green-100 flex items-start gap-3">
+                                <span className="text-green-500 font-bold">✓</span>
+                                <p className="text-sm font-bold text-green-600">{resetSuccess}</p>
+                            </div>
+                        )}
+
                         <form onSubmit={handleLogin} className="space-y-5">
                             <div className="space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700 ml-1">{t('email')}</label>
@@ -111,8 +143,15 @@ export default function Login() {
                         </form>
 
                         <div className="mt-8 flex items-center justify-between text-sm">
-                            <button className="text-slate-400 hover:text-slate-600 font-medium transition-colors">{t('forgot_password')}</button>
-                            <button className="text-blue-600 hover:text-blue-700 font-bold transition-colors">{t('contact_admin')}</button>
+                            <button
+                                type="button"
+                                onClick={handleForgotPassword}
+                                disabled={loading}
+                                className="text-slate-400 hover:text-slate-600 font-medium transition-colors disabled:opacity-50"
+                            >
+                                {t('forgot_password', 'Forgot password?')}
+                            </button>
+                            <button type="button" className="text-blue-600 hover:text-blue-700 font-bold transition-colors">{t('contact_admin', 'Contact Admin')}</button>
                         </div>
                     </div>
                 </div>

@@ -77,10 +77,17 @@ export default function Layout() {
     }
 
     // 3. HQ ADMIN SUITE (and Legacy Root)
-    else if (isHQ || isLegacyAdmin) {
-        navItems.push({ to: '/wallet', icon: DollarSign, label: t('treasury') });
+    else if (isHQ || isLegacyAdmin || role === 'HQ_FINANCE' || role === 'INVESTOR') {
+        // Investors get Reports ONLY. Others get Wallet.
+        if (role !== 'INVESTOR') {
+            navItems.push({ to: '/wallet', icon: DollarSign, label: t('treasury') });
+        }
         navItems.push({ to: '/reports', icon: BarChart3, label: t('reports') });
-        navItems.push({ to: '/admin', icon: Settings, label: t('admin') });
+
+        // Only HQ_ADMIN/CEO gets Admin Panel
+        if (isHQ || isLegacyAdmin) {
+            navItems.push({ to: '/admin', icon: Settings, label: t('admin') });
+        }
     }
 
     // Calculate top padding for main content (adjust for CEO banner)

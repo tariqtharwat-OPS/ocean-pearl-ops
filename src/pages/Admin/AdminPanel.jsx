@@ -22,7 +22,7 @@ export default function AdminPanel() {
     };
 
     const { role_v2 } = currentUser || {};
-    const hasAdminAccess = role_v2 === 'HQ_ADMIN' || role_v2 === 'LOC_MANAGER' || currentUser?.role === 'admin' || currentUser?.role === 'ceo';
+    const hasAdminAccess = role_v2 === 'HQ_ADMIN' || role_v2 === 'LOC_MANAGER' || role_v2 === 'CEO' || currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'ceo';
 
     if (!currentUser || !hasAdminAccess) {
         return <div className="p-4 text-red-500">Access Denied: Admin or Manager Access Required</div>;
@@ -396,13 +396,14 @@ function UserEditModal({ user, onClose, onSuccess }) {
         if (!confirm(`Generate temporary password for ${user.email}?`)) return;
         setUpdating(true);
         try {
+            const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
             const manageUser = httpsCallable(functions, 'manageUser');
-            const res = await manageUser({
+            await manageUser({
                 targetUid: user.id,
                 action: 'reset_password',
-                payload: {}
+                payload: { newPassword: tempPassword }
             });
-            setResetResult({ tempPassword: res.data.tempPassword });
+            setResetResult({ tempPassword });
             onSuccess("Password reset complete. Please copy the password below.");
         } catch (e) {
             alert(e.message);

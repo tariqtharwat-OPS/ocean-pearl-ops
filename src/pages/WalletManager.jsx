@@ -28,7 +28,7 @@ export default function WalletManager() {
 
     // Permissions
     const roleV2 = (currentUser?.role_v2 || '').toUpperCase();
-    const isHQ = roleV2 === 'HQ_ADMIN';
+    const isHQ = roleV2 === 'HQ_ADMIN' || roleV2 === 'HQ_FINANCE';
     const isManager = roleV2 === 'LOC_MANAGER' || roleV2 === 'LOCATION_MANAGER' || isHQ;
     const isUnit = roleV2 === 'UNIT_OP' || roleV2 === 'UNIT_OPERATOR';
 

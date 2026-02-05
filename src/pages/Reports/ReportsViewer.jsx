@@ -1,3 +1,12 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../lib/firebase';
+import { collection, query, where, orderBy, limit, getDocs, collectionGroup } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
+import { Download, Sparkles, X } from 'lucide-react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../lib/firebase';
+
 // --- HELPERS ---
 const downloadCSV = (data, filename) => {
     if (!data || data.length === 0) return toast.error("No data to export");
@@ -10,6 +19,9 @@ const downloadCSV = (data, filename) => {
             let val = row[fieldName];
             if (val && typeof val === 'object' && val.seconds) { // Timestamp
                 val = new Date(val.seconds * 1000).toISOString();
+            }
+            if (val && typeof val === 'object' && val.toDate) { // Firestore Timestamp
+                val = val.toDate().toISOString();
             }
             if (typeof val === 'string') val = `"${val.replace(/"/g, '""')}"`; // Escape quotes
             return val;
@@ -29,43 +41,6 @@ const downloadCSV = (data, filename) => {
     }
 };
 
-import { toast } from 'react-hot-toast';
-import { Download, Sparkles, X } from 'lucide-react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../lib/firebase';
-
-// ... (Existing component code needs to be stitched carefully)
-// I will apply this helper at the bottom and update components individually in subsequent steps if needed, 
-// but replace_file_content replaces the BLOCK.
-// Actually, I should insert the helper at top or bottom, and then modify components.
-// The user instruction "Add downloadCSV helper and Export buttons" implies I should do it in one go if possible or multiple chunks.
-
-// Let's replace the whole file content structure slightly to include imports and helper.
-
-// ... (Imports)
-import { Download, Sparkles } from 'lucide-react';
-import { toast } from 'react-hot-toast';
-
-// Helper
-const downloadCSV = (data, filename) => {
-    if (!data.length) return toast.error("No data");
-    const headers = Object.keys(data[0]);
-    const csv = [
-        headers.join(','),
-        ...data.map(r => headers.map(h => {
-            let v = r[h];
-            if (v && typeof v === 'object' && v.toDate) v = v.toDate().toISOString();
-            if (typeof v === 'string') v = `"${v.replace(/"/g, '""')}"`;
-            return v;
-        }).join(','))
-    ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-};
 
 export default function ReportsViewer() {
     const [activeTab, setActiveTab] = useState('stock');

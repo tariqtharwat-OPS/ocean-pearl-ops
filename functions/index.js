@@ -139,10 +139,12 @@ exports.createSystemUser = onCall(async (request) => {
     const { email, password, displayName, role, role_v2, locationId, unitId, phone } = data;
 
     try {
+        // Step 1: Create in Auth
         const userRecord = await admin.auth().createUser({
             email,
             password,
-            displayName
+            displayName,
+            emailVerified: true
         });
 
         // Mapping Logic
@@ -155,6 +157,15 @@ exports.createSystemUser = onCall(async (request) => {
                             'READ_ONLY'
         );
 
+        // Step 2: Set Custom Claims (CRITICAL - was missing!)
+        await admin.auth().setCustomUserClaims(userRecord.uid, {
+            role: targetRole,
+            role_v2: finalRoleV2,
+            locationId: locationId || null,
+            unitId: unitId || null
+        });
+
+        // Step 3: Write to Firestore
         await db.collection('users').doc(userRecord.uid).set({
             email,
             role: targetRole,
@@ -163,15 +174,18 @@ exports.createSystemUser = onCall(async (request) => {
             locationId: locationId || null,
             unitId: unitId || null,
             phone: phone || null,
+            status: 'enabled',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdBy: callerUid
         });
 
+        console.log(`✅ User created: ${email} (${finalRoleV2}) - UID: ${userRecord.uid}`);
+
         return { success: true, uid: userRecord.uid, message: `User ${email} created successfully.` };
 
     } catch (err) {
-        console.error("Create User Error", err);
-        throw new HttpsError('internal', err.message);
+        console.error("❌ Create User Error:", err);
+        throw new HttpsError('internal', `Failed to create user: ${err.message}`);
     }
 });
 
