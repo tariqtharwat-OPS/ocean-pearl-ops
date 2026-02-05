@@ -247,3 +247,4 @@ export type OperationType = (typeof OPERATION_TYPES)[number];
 export type InvoiceType = (typeof INVOICE_TYPES)[number];
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export type TraceLinkType = (typeof TRACE_LINK_TYPES)[number];
+
