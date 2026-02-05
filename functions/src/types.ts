@@ -72,12 +72,22 @@ export const TRACE_LINK_TYPES = [
 // ZOD SCHEMAS
 // ============================================================================
 
+// Firestore Timestamp Schema (supports both Firestore Timestamp and Date)
+export const FirestoreTimestampSchema = z.union([
+    z.date(),
+    z.custom<FirebaseFirestore.Timestamp>((val) => {
+        return val && typeof val === 'object' && 'toDate' in val;
+    }, {
+        message: 'Must be a Firestore Timestamp or Date',
+    }),
+]);
+
 // Location Schema
 export const LocationSchema = z.object({
     id: z.string(),
     name: z.string().min(1),
     isActive: z.boolean(),
-    createdAt: z.date(),
+    createdAt: FirestoreTimestampSchema,
 });
 
 // Unit Schema
@@ -87,7 +97,7 @@ export const UnitSchema = z.object({
     unitType: z.enum(UNIT_TYPES),
     name: z.string().min(1),
     isActive: z.boolean(),
-    createdAt: z.date(),
+    createdAt: FirestoreTimestampSchema,
 });
 
 // User Schema
@@ -99,7 +109,7 @@ export const UserSchema = z.object({
     isActive: z.boolean(),
     displayName: z.string().optional(),
     email: z.string().optional(),
-    createdAt: z.date(),
+    createdAt: FirestoreTimestampSchema,
 });
 
 // Inventory Lot Schema
@@ -118,8 +128,8 @@ export const InventoryLotSchema = z.object({
         boatId: z.string().optional(),
         supplierId: z.string().optional(),
     }),
-    createdAt: z.date(),
-    updatedAt: z.date().optional(),
+    createdAt: FirestoreTimestampSchema,
+    updatedAt: FirestoreTimestampSchema.optional(),
 });
 
 // Ledger Entry Line Schema
@@ -137,7 +147,7 @@ export const LedgerLineSchema = z.object({
 export const LedgerEntrySchema = z
     .object({
         id: z.string(),
-        timestamp: z.date(),
+        timestamp: FirestoreTimestampSchema,
         locationId: z.string(),
         unitId: z.string(),
         actorUserId: z.string(),
@@ -151,7 +161,7 @@ export const LedgerEntrySchema = z
             attachmentIds: z.array(z.string()).default([]),
         }),
         notes: z.string().optional(),
-        createdAt: z.date(),
+        createdAt: FirestoreTimestampSchema,
     })
     .refine(
         (entry) => {
@@ -180,8 +190,8 @@ export const InvoiceSchema = z.object({
     currency: z.string().default('IDR'),
     totalAmountIdr: z.number().nonnegative(),
     linkedDeliveryRefId: z.string().optional(),
-    createdAt: z.date(),
-    updatedAt: z.date().optional(),
+    createdAt: FirestoreTimestampSchema,
+    updatedAt: FirestoreTimestampSchema.optional(),
 });
 
 // Payment Schema
@@ -191,7 +201,7 @@ export const PaymentSchema = z.object({
     amountIdr: z.number().nonnegative(),
     method: z.string(),
     attachmentIds: z.array(z.string()).default([]),
-    createdAt: z.date(),
+    createdAt: FirestoreTimestampSchema,
 });
 
 // Trace Link Schema (for fast genealogy queries)
@@ -201,7 +211,7 @@ export const TraceLinkSchema = z.object({
     toLotId: z.string(),
     eventId: z.string(), // References ledger entry
     type: z.enum(TRACE_LINK_TYPES),
-    createdAt: z.date(),
+    createdAt: FirestoreTimestampSchema,
 });
 
 // Attachment Schema
@@ -211,7 +221,7 @@ export const AttachmentSchema = z.object({
     fileType: z.string(),
     storagePath: z.string(),
     uploadedBy: z.string(),
-    uploadedAt: z.date(),
+    uploadedAt: FirestoreTimestampSchema,
 });
 
 // ============================================================================

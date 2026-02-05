@@ -103,10 +103,10 @@ service cloud.firestore {
       allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
     }
     
-    // UNITS - All users can read their allowed units
+    //UNITS - All users can read their allowed units
     match /units/{unitId} {
       allow read: if isAuthenticated() && (
-        isHQ() || canAccessUnit(unitId)
+        isHQ() || canAccessUnit(unitId) || canAccessLocation(resource.data.locationId)
       );
       allow write: if hasAnyRole(['CEO', 'HQ_ADMIN']);
     }
