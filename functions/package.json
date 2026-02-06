@@ -13,7 +13,8 @@
         "logs": "firebase functions:log",
         "seed": "tsx src/seed.ts",
         "test:t1": "tsx tests/testT1.ts",
-        "test:t2": "tsx tests/testT2.ts"
+        "test:t2": "tsx tests/testT2.ts",
+        "test:t3": "tsx tests/testT3.ts"
     },
     "engines": {
         "node": "20"
