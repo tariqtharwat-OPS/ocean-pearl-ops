@@ -5,3 +5,4 @@
 
 // Import handlers
 export { receivingHandler } from './handlers/receivingHandler.js';
+export { walletTransactionHandler } from './handlers/walletTransactionHandler.js';
