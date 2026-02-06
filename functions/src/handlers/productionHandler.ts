@@ -70,6 +70,11 @@ export const productionLogic = async (request: any) => {
 
     const db = admin.firestore();
 
+    // Guard: Validate Master Data
+    const unitDoc = await db.collection('units').doc(input.unitId).get();
+    if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found: ${input.unitId}`);
+    if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
+
     // Execute transaction with idempotency inside
     return db.runTransaction(async (transaction): Promise<ProductionResult> => {
         // 1. Check idempotency INSIDE transaction using deterministic doc ID
@@ -96,7 +101,10 @@ export const productionLogic = async (request: any) => {
             inputLotRefs.map(ref => transaction.get(ref))
         );
 
-        // Validate input lots
+        let totalInputCost = 0;
+        let totalInputKg = 0;
+
+        // Validate input lots and calculate cost
         for (let i = 0; i < inputLotDocs.length; i++) {
             const doc = inputLotDocs[i];
             const requestedQty = input.inputLots[i].quantityKg;
@@ -125,6 +133,12 @@ export const productionLogic = async (request: any) => {
                     `available ${lotData!.quantityKgRemaining} kg, requested ${requestedQty} kg`
                 );
             }
+
+            // Accumulate Cost (Weighted by consumed qty)
+            const lotCostPerKg = lotData!.costPerKgIdr || 0;
+            const consumedCost = requestedQty * lotCostPerKg;
+            totalInputCost += consumedCost;
+            totalInputKg += requestedQty;
         }
 
         // Generate IDs
@@ -142,60 +156,66 @@ export const productionLogic = async (request: any) => {
 
         const timestamp = new Date();
 
-        // 3. Calculate Financials & Ledger Lines
-        const totalInputKg = input.inputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
+        // 3. Calculate Financials (Allocation Policy)
         const totalOutputKg = input.outputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
 
-        const costPerKg = input.costPerKgIdr || 0;
-        const totalInputValue = totalInputKg * costPerKg;
-        const totalOutputValue = totalOutputKg * costPerKg;
+        // Calculate Loss/Shrink
+        // Policy: Shrink Cost = (InputKg - OutputKg) * AvgInputCostPerKg
+        const missingKg = Math.max(0, totalInputKg - totalOutputKg);
+        const weightedAvgCostPerKg = totalInputKg > 0 ? (totalInputCost / totalInputKg) : 0;
+        const shrinkCost = missingKg * weightedAvgCostPerKg;
 
-        // Calculate strict variance
-        const variance = totalInputValue - totalOutputValue;
+        // Allocatable Cost to Outputs
+        const allocatableCost = totalInputCost - shrinkCost;
 
-        // Reject if output value > input value (Cannot create value from nothing)
-        if (variance < -0.01) {
-            throw new HttpsError(
-                'failed-precondition',
-                `Invalid Production: Output value (${totalOutputValue}) exceeds Input value (${totalInputValue}). Variance: ${variance}`
-            );
-        }
+        // Validate Variance
+        // If output value (at new Basis) differs from Input Cost, it should only be due to Shrink.
+        // If OutputKg > InputKg (Gain), we have "Free Value"? Or diluted cost?
+        // Proportional logic handles gain too (cost spreads thinner).
+        // T3 Logic required "Variance < 0" check (Gain of value disallowed).
+        // With Mass-balance, Value is conserved.
+        // Gain in Kg -> Lower Cost/Kg. Value same.
+        // Loss in Kg -> Higher Cost/Kg? OR Expense Loss.
+        // Policy says: "loss cost posts EXPENSE_PRODUCTION_LOSS and is removed from allocatable cost."
+        // This means Unit Cost remains constant (approx).
 
         const ledgerLines = [
-            // DEBIT: Finished Goods (Output Value)
+            // DEBIT: Finished Goods (Allocatable Cost)
             {
                 account: 'INVENTORY_FINISHED',
                 direction: 'DEBIT' as const,
-                amountIdr: totalOutputValue,
+                amountIdr: allocatableCost,
                 quantityKg: totalOutputKg,
             },
-            // CREDIT: Raw Material (Input Value)
+            // CREDIT: Raw Material (Total Input Cost)
             {
                 account: 'INVENTORY_RAW',
                 direction: 'CREDIT' as const,
-                amountIdr: totalInputValue,
+                amountIdr: totalInputCost,
                 quantityKg: totalInputKg,
             }
         ];
 
-        // Handle strict Positive Variance (Loss/Shrink)
-        if (variance > 0) {
+        // Handle Shrink Expense
+        if (shrinkCost > 0.01) {
             ledgerLines.push({
                 account: 'EXPENSE_PRODUCTION_LOSS',
                 direction: 'DEBIT' as const,
-                amountIdr: variance,
-                quantityKg: Math.max(0, totalInputKg - totalOutputKg), // Mass balance check logic
+                amountIdr: shrinkCost,
+                quantityKg: missingKg,
             });
         }
 
-        // 4. Update input lots (reduce quantity)
+        // 4. Update input lots (reduce quantity AND cost)
         for (let i = 0; i < inputLotRefs.length; i++) {
             const doc = inputLotDocs[i];
-            const lotData = doc.data();
+            const lotData = doc.data()!;
             const consumedQty = input.inputLots[i].quantityKg;
+            const consumedCost = consumedQty * (lotData.costPerKgIdr || 0);
 
             transaction.update(inputLotRefs[i], {
-                quantityKgRemaining: lotData!.quantityKgRemaining - consumedQty,
+                quantityKgRemaining: lotData.quantityKgRemaining - consumedQty,
+                costTotalIdr: (lotData.costTotalIdr || 0) - consumedCost,
                 updatedAt: timestamp,
             });
         }
@@ -221,10 +241,16 @@ export const productionLogic = async (request: any) => {
 
         LedgerEntrySchema.parse(ledgerEntry);
 
-        // 6. Create Output Lots
+        // 6. Create Output Lots (With Allocated Cost)
         for (let i = 0; i < input.outputLots.length; i++) {
             const outputSpec = input.outputLots[i];
             const outputLotId = outputLotIds[i];
+
+            // Allocation: (OutputQty / TotalOutputQty) * AllocatableCost
+            // Handle divide by zero if TotalOutput == 0
+            const allocationRatio = totalOutputKg > 0 ? (outputSpec.quantityKg / totalOutputKg) : 0;
+            const lotTotalCost = allocationRatio * allocatableCost;
+            const lotCostPerKg = outputSpec.quantityKg > 0 ? (lotTotalCost / outputSpec.quantityKg) : 0;
 
             const inventoryLot = {
                 id: outputLotId,
@@ -234,6 +260,8 @@ export const productionLogic = async (request: any) => {
                 grade: outputSpec.grade,
                 status: outputSpec.status,
                 quantityKgRemaining: outputSpec.quantityKg,
+                costPerKgIdr: lotCostPerKg,
+                costTotalIdr: lotTotalCost,
                 uom: 'KG' as const,
                 origin: {
                     sourceType: 'PRODUCTION' as const,

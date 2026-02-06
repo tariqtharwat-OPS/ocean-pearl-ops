@@ -1,6 +1,6 @@
 /**
  * Ocean Pearl OPS V2 - Reports Validator
- * Phase 3: Financial & Inventory Reporting
+ * Phase 4: Finance Truth (Valuation Check)
  * 
  * Usage: npx tsx src/reports.ts
  */
@@ -37,6 +37,7 @@ async function generateTrialBalance() {
 
     let totalDebit = 0;
     let totalCredit = 0;
+    const balances: Record<string, number> = {}; // Net Debit - Credit
 
     Object.keys(accounts).sort().forEach(acc => {
         const { debit, credit } = accounts[acc];
@@ -47,6 +48,7 @@ async function generateTrialBalance() {
         );
         totalDebit += debit;
         totalCredit += credit;
+        balances[acc] = debit - credit;
     });
 
     console.log('--------------------------------------------------');
@@ -58,51 +60,79 @@ async function generateTrialBalance() {
 
     const variance = Math.abs(totalDebit - totalCredit);
     if (variance < 1) console.log('✅ BALANCED');
-    else console.log(`❌ UNBALANCED (Diff: ${variance})`);
+    else {
+        console.log(`❌ UNBALANCED (Diff: ${variance})`);
+        process.exit(1);
+    }
 
-    return accounts;
+    return balances;
 }
 
-async function generateInventoryReport() {
-    console.log('\n📦 INVENTORY REPORT (Operational)');
-    console.log('-----------------------------------------------------------');
-    console.log('Item'.padEnd(20) + 'Status'.padEnd(15) + 'Location'.padEnd(15) + 'Quantity (kg)'.padStart(10));
-    console.log('-----------------------------------------------------------');
+async function checkInventoryValuation(ledgerBalances: Record<string, number>) {
+    console.log('\n💎 INVENTORY VALUATION CHECK');
+    console.log('--------------------------------------------------');
 
-    const snapshot = await db.collection('inventory_lots').where('quantityKgRemaining', '>', 0).get();
-    const inventory: Record<string, number> = {};
-
-    snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        // Key: Item | Status | Location
-        const key = `${data.itemId}|${data.status}|${data.locationId}`;
-        inventory[key] = (inventory[key] || 0) + data.quantityKgRemaining;
+    const lots = await db.collection('inventory_lots').where('quantityKgRemaining', '>', 0).get();
+    let lotValue = 0;
+    lots.docs.forEach(d => {
+        const val = d.data().costTotalIdr || 0;
+        lotValue += val;
     });
 
-    let totalKg = 0;
-    Object.keys(inventory).sort().forEach(key => {
-        const [item, status, loc] = key.split('|');
-        const qty = inventory[key];
-        console.log(
-            item.padEnd(20) +
-            status.padEnd(15) +
-            loc.padEnd(15) +
-            qty.toLocaleString('en-ID').padStart(10)
-        );
-        totalKg += qty;
-    });
+    // Ledger Assets (Debit is positive)
+    const ledgerValue = (ledgerBalances['INVENTORY_RAW'] || 0) +
+        (ledgerBalances['INVENTORY_FINISHED'] || 0) +
+        (ledgerBalances['INVENTORY_TRANSIT'] || 0) +
+        (ledgerBalances['INVENTORY_WASTE'] || 0);
 
-    console.log('-----------------------------------------------------------');
-    console.log('TOTAL ON HAND'.padEnd(50) + totalKg.toLocaleString('en-ID').padStart(10));
+    console.log(`Lots Value (Physical):   IDR ${lotValue.toLocaleString('en-ID')}`);
+    console.log(`Ledger Value (Financial): IDR ${ledgerValue.toLocaleString('en-ID')}`);
+
+    const diff = Math.abs(lotValue - ledgerValue);
+    if (diff > 100) { // Tolerance 100 IDR (rounding)
+        console.error(`❌ VALUATION MISMATCH (Diff: ${diff})`);
+        process.exit(1);
+    } else {
+        console.log('✅ VALUATION MATCH');
+    }
+}
+
+async function generatePnL(balances: Record<string, number>) {
+    console.log('\n📈 P&L SNAPSHOT');
+    console.log('--------------------------------------------------');
+
+    // Credits are negative in 'balances' calculation? 
+    // Wait, balances = debit - credit.
+    // Revenue is Credit, so Balance is Negative.
+    // Let's invert for display.
+
+    const revenue = -((balances['REVENUE_SALES'] || 0) + (balances['REVENUE_WASTE'] || 0));
+    const cogs = (balances['EXPENSE_COGS'] || 0);
+    const grossProfit = revenue - cogs;
+
+    // Other Expenses
+    const loss = (balances['EXPENSE_PRODUCTION_LOSS'] || 0);
+    const ice = (balances['EXPENSE_ICE'] || 0);
+    const totalOpex = loss + ice;
+
+    const netIncome = grossProfit - totalOpex;
+
+    console.log(`Revenue:       IDR ${revenue.toLocaleString('en-ID')}`);
+    console.log(`COGS:          IDR ${cogs.toLocaleString('en-ID')}`);
+    console.log(`Gross Profit:  IDR ${grossProfit.toLocaleString('en-ID')}`);
+    console.log(`Expenses:      IDR ${totalOpex.toLocaleString('en-ID')}`);
+    console.log(`Net Income:    IDR ${netIncome.toLocaleString('en-ID')}`);
 }
 
 async function main() {
     console.log('📑 Generating Validation Reports...');
 
     try {
-        await generateTrialBalance();
-        await generateInventoryReport();
-        console.log('\n✅ Reports Generated Successfully');
+        const balances = await generateTrialBalance();
+        await checkInventoryValuation(balances);
+        await generatePnL(balances);
+
+        console.log('\n✅ All Validation Checks Passed');
     } catch (error) {
         console.error('❌ Report Generation Failed:', error);
         process.exit(1);

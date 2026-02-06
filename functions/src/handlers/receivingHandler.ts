@@ -68,6 +68,15 @@ export const receivingLogic = async (request: any) => {
         };
     }
 
+    // Start Transaction (Guard Check inside or outside? Outside for perf, Inside for consistency? Outside is fine for static master data)
+    // Validate Master Data
+    const locationDoc = await db.collection('locations').doc(input.locationId).get();
+    if (!locationDoc.exists) throw new HttpsError('not-found', `Location not found: ${input.locationId}`);
+
+    const unitDoc = await db.collection('units').doc(input.unitId).get();
+    if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found: ${input.unitId}`);
+    if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
+
     // Execute transaction
     const result = await db.runTransaction(async (transaction) => {
         // Generate IDs
@@ -124,6 +133,8 @@ export const receivingLogic = async (request: any) => {
             grade: input.grade,
             status: 'RAW' as const,
             quantityKgRemaining: input.quantityKg,
+            costPerKgIdr: input.pricePerKgIdr,
+            costTotalIdr: totalAmountIdr,
             uom: 'KG' as const,
             origin: {
                 sourceType: 'CATCH' as const,

@@ -128,6 +128,8 @@ export const InventoryLotSchema = z.object({
         boatId: z.string().optional(),
         supplierId: z.string().optional(),
     }),
+    costPerKgIdr: z.number().nonnegative(),
+    costTotalIdr: z.number().nonnegative(),
     createdAt: FirestoreTimestampSchema,
     updatedAt: FirestoreTimestampSchema.optional(),
 });

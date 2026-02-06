@@ -34,6 +34,14 @@ export const transferLogic = async (request: any) => {
     const db = admin.firestore();
 
     return db.runTransaction(async (t) => {
+        // Guard: Validate Master Data
+        const srcUnitDoc = await t.get(db.collection('units').doc(input.sourceUnitId));
+        const tgtUnitDoc = await t.get(db.collection('units').doc(input.targetUnitId));
+        if (!srcUnitDoc.exists) throw new HttpsError('not-found', `Source Unit ${input.sourceUnitId} missing`);
+        if (!tgtUnitDoc.exists) throw new HttpsError('not-found', `Target Unit ${input.targetUnitId} missing`);
+        if (srcUnitDoc.data()?.locationId !== input.sourceLocationId) throw new HttpsError('invalid-argument', `Source Unit mismatch`);
+        if (tgtUnitDoc.data()?.locationId !== input.targetLocationId) throw new HttpsError('invalid-argument', `Target Unit mismatch`);
+
         // Idempotency
         const ledgerId = `transfer-${input.sourceUnitId}-${input.targetUnitId}-${input.operationId}`;
         const existing = await t.get(db.collection('ledger_entries').doc(ledgerId));
@@ -68,9 +76,14 @@ export const transferLogic = async (request: any) => {
                 throw new HttpsError('failed-precondition', `Lot unit mismatch`);
             }
 
+            // Calculate Cost Logic
+            const costPerKg = srcData.costPerKgIdr || 0;
+            const transferCost = item.quantityKg * costPerKg;
+
             // 1. Update Source Lot
             t.update(srcRefs[i], {
                 quantityKgRemaining: srcData.quantityKgRemaining - item.quantityKg,
+                costTotalIdr: (srcData.costTotalIdr || 0) - transferCost,
                 updatedAt: timestamp
             });
 
@@ -86,6 +99,8 @@ export const transferLogic = async (request: any) => {
                 grade: srcData.grade,
                 status: srcData.status,
                 quantityKgRemaining: item.quantityKg,
+                costPerKgIdr: costPerKg,
+                costTotalIdr: transferCost,
                 uom: 'KG' as const,
                 origin: {
                     sourceType: 'TRANSFER' as const,

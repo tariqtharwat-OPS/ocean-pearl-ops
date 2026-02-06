@@ -34,6 +34,14 @@ export const salesLogic = async (request: any) => {
     const db = admin.firestore();
 
     return db.runTransaction(async (t) => {
+        // Guard: Validate Master Data
+        const locationDoc = await t.get(db.collection('locations').doc(input.locationId));
+        if (!locationDoc.exists) throw new HttpsError('not-found', `Location not found`);
+
+        const unitDoc = await t.get(db.collection('units').doc(input.unitId));
+        if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found`);
+        if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit mismatch`);
+
         // Idempotency
         const ledgerId = `sale-goods-${input.unitId}-${input.operationId}`;
         const existing = await t.get(db.collection('ledger_entries').doc(ledgerId));
@@ -51,6 +59,7 @@ export const salesLogic = async (request: any) => {
         const lotDocs = await Promise.all(lotRefs.map(ref => t.get(ref)));
 
         let totalAmount = 0;
+        let totalCOGS = 0;
         const soldLotIds: string[] = [];
 
         for (let i = 0; i < lotDocs.length; i++) {
@@ -76,11 +85,18 @@ export const salesLogic = async (request: any) => {
             }
 
             totalAmount += item.quantityKg * item.pricePerKgIdr;
+
+            // Calculate COGS
+            const costPerKg = data.costPerKgIdr || 0;
+            const cogs = item.quantityKg * costPerKg;
+            totalCOGS += cogs;
+
             soldLotIds.push(item.lotId);
 
             // Update Lot
             t.update(lotRefs[i], {
                 quantityKgRemaining: data.quantityKgRemaining - item.quantityKg,
+                costTotalIdr: (data.costTotalIdr || 0) - cogs,
                 updatedAt: new Date()
             });
         }
@@ -124,6 +140,17 @@ export const salesLogic = async (request: any) => {
                     account: 'REVENUE_SALES',
                     direction: 'CREDIT' as const,
                     amountIdr: totalAmount
+                },
+                // COGS Posting
+                {
+                    account: 'EXPENSE_COGS',
+                    direction: 'DEBIT' as const,
+                    amountIdr: totalCOGS
+                },
+                {
+                    account: 'INVENTORY_FINISHED',
+                    direction: 'CREDIT' as const,
+                    amountIdr: totalCOGS
                 }
             ],
             links: {
