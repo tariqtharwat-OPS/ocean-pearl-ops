@@ -1,5 +1,5 @@
 /**
- * Ocean Pearl OPS V2 - Production Handler (FIXED V3)
+ * Ocean Pearl OPS V2 - Production Handler (FIXED V3.1)
  * Phase 2: Test T3 - Production/Transformation
  * 
  * Creates:
@@ -49,7 +49,6 @@ const ProductionInputSchema = z.object({
     notes: z.string().optional(),
 });
 
-// Export type for use in other files if needed
 export type ProductionInput = z.infer<typeof ProductionInputSchema>;
 
 interface ProductionResult {
@@ -59,7 +58,8 @@ interface ProductionResult {
     traceLinkIds: string[];
 }
 
-export const productionHandler = onCall({ region: 'us-central1' }, async (request) => {
+// Export logic for testing
+export const productionLogic = async (request: any) => {
     // Validate authentication
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'Must be authenticated');
@@ -84,7 +84,7 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
                 success: true,
                 ledgerEntryId,
                 outputLotIds: existingData?.links.outputLotIds || [],
-                traceLinkIds: [], // Would need to query to get these if needed
+                traceLinkIds: [],
             };
         }
 
@@ -140,7 +140,7 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
             }
         }
 
-        const timestamp = admin.firestore.FieldValue.serverTimestamp();
+        const timestamp = new Date();
 
         // 3. Calculate Financials & Ledger Lines
         const totalInputKg = input.inputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
@@ -154,7 +154,6 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
         const variance = totalInputValue - totalOutputValue;
 
         // Reject if output value > input value (Cannot create value from nothing)
-        // Use small epsilon for float safety
         if (variance < -0.01) {
             throw new HttpsError(
                 'failed-precondition',
@@ -285,4 +284,6 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
             traceLinkIds,
         };
     });
-});
+};
+
+export const productionHandler = onCall({ region: 'us-central1' }, productionLogic);
