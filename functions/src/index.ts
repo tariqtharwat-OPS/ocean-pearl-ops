@@ -1,16 +1,7 @@
 /**
  * Ocean Pearl OPS V2 - Cloud Functions Entry Point
- * Phase 1: Core Data Model only (no business functions yet)
+ * Phase 2: Backend Integrity - Business Logic Handlers
  */
 
-// Placeholder for future Cloud Functions
-// Phase 2 will implement:
-// - receivingHandler
-// - productionHandler
-// - transferHandler
-// - salesHandler
-// - walletTransactionHandler
-
-export const placeholder = () => {
-    console.log('Phase 1: Core Data Model - No business functions yet');
-};
+// Import handlers
+export { receivingHandler } from './handlers/receivingHandler.js';
