@@ -1,5 +1,5 @@
 /**
- * Ocean Pearl OPS V2 - Production Handler (FIXED V2)
+ * Ocean Pearl OPS V2 - Production Handler (FIXED V3)
  * Phase 2: Test T3 - Production/Transformation
  * 
  * Creates:
@@ -11,7 +11,7 @@
  * Enforces:
  * - Idempotency via operationId (inside transaction)
  * - Unit validation (prevent cross-unit consumption)
- * - Ledger Balancing (handles shrinkage/loss automatically)
+ * - Strict Ledger Balancing (Variance > 0 = Loss, Variance < 0 = Error)
  * - Firestore transaction
  * - Zod validation
  */
@@ -150,9 +150,17 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
         const totalInputValue = totalInputKg * costPerKg;
         const totalOutputValue = totalOutputKg * costPerKg;
 
-        // Calculate Variance (Shrinkage/Loss)
-        // If inputs cost 100 and outputs worth 90, we have 10 loss.
+        // Calculate strict variance
         const variance = totalInputValue - totalOutputValue;
+
+        // Reject if output value > input value (Cannot create value from nothing)
+        // Use small epsilon for float safety
+        if (variance < -0.01) {
+            throw new HttpsError(
+                'failed-precondition',
+                `Invalid Production: Output value (${totalOutputValue}) exceeds Input value (${totalInputValue}). Variance: ${variance}`
+            );
+        }
 
         const ledgerLines = [
             // DEBIT: Finished Goods (Output Value)
@@ -171,18 +179,15 @@ export const productionHandler = onCall({ region: 'us-central1' }, async (reques
             }
         ];
 
-        // Handle Variance (Loss/Shrink)
-        if (variance > 0.01) {
+        // Handle strict Positive Variance (Loss/Shrink)
+        if (variance > 0) {
             ledgerLines.push({
                 account: 'EXPENSE_PRODUCTION_LOSS',
                 direction: 'DEBIT' as const,
                 amountIdr: variance,
-                quantityKg: totalInputKg - totalOutputKg, // Mass balance check
+                quantityKg: Math.max(0, totalInputKg - totalOutputKg), // Mass balance check logic
             });
         }
-        // Technically variance < 0 is a gain, but we'll ignore for this cost model context 
-        // or treat as negative expense if strict balancing needed.
-        // For now, assume consistent pricing.
 
         // 4. Update input lots (reduce quantity)
         for (let i = 0; i < inputLotRefs.length; i++) {
