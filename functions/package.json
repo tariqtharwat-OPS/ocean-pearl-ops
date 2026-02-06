@@ -11,7 +11,8 @@
         "start": "npm run shell",
         "deploy": "firebase deploy --only functions",
         "logs": "firebase functions:log",
-        "seed": "tsx src/seed.ts"
+        "seed": "tsx src/seed.ts",
+        "test:t1": "tsx tests/testT1.ts"
     },
     "engines": {
         "node": "20"
