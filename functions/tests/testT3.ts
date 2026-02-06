@@ -1,8 +1,10 @@
 /**
- * Test T3: Production Handler
+ * Test T3: Production Handler (FIXED)
  * Tests production/transformation workflow
  * 
  * Scenario: Raw sardine (500 kg) → Frozen sardine (480 kg) + Waste (20 kg)
+ * 
+ * FIXED: Input lot created at FACTORY unit (not boat) to match production unit
  */
 
 import admin from 'firebase-admin';
@@ -15,20 +17,21 @@ admin.initializeApp();
 const db = admin.firestore();
 
 async function setupInputLot() {
-    console.log('🔧 Setup: Creating input lot via receiving...\n');
+    console.log('🔧 Setup: Creating input lot at factory via receiving...\n');
 
+    // FIXED: Create lot at FACTORY (not boat) to match production unit
     const receivePayload = {
         operationId: 'test-receive-for-production-' + Date.now(),
         locationId: 'kaimana',
-        unitId: 'kaimana-fishing-1',
-        boatId: 'kaimana-fishing-1',
+        unitId: 'kaimana-factory-1', // FACTORY receives raw material (not boat)
+        boatId: 'kaimana-fishing-1', // Track source boat
         itemId: 'sardine-raw',
         quantityKg: 500,
         grade: 'A',
         pricePerKgIdr: 15000,
         fisherId: 'partner-fisher1',
         actorUserId: 'UNIT_OP_FACTORY1',
-        notes: 'Setup for T3: Input lot creation',
+        notes: 'Setup for T3: Factory receives raw material for production',
     };
 
     const mockRequest = {
@@ -37,7 +40,7 @@ async function setupInputLot() {
     };
 
     const receiveResult = await receivingHandler(mockRequest as any);
-    console.log(`✅ Input lot created: ${receiveResult.lotId} (${receivePayload.quantityKg} kg)\n`);
+    console.log(`✅ Input lot created at FACTORY: ${receiveResult.lotId} (${receivePayload.quantityKg} kg)\n`);
 
     return receiveResult.lotId;
 }
@@ -47,7 +50,7 @@ async function testT3() {
     console.log('=====================================\n');
 
     try {
-        // Setup: Create input lot
+        // Setup: Create input lot at factory
         const inputLotId = await setupInputLot();
 
         // Wait a moment to ensure Firestore consistency
@@ -143,8 +146,12 @@ async function testT3() {
             console.log(`   - Lot ${outputLotId}: ${outputLotData?.itemId}, ${outputLotData?.quantityKgRemaining} kg, status: ${outputLotData?.status}`);
         }
 
-        // Verify trace links created
-        console.log(`✅ Trace Links Created: ${result.traceLinkIds.length}`);
+        // Verify trace links created (should be inputCount × outputCount)
+        const expectedTraceLinks = 1 * 2; // 1 input × 2 outputs = 2 links
+        console.log(`✅ Trace Links Created: ${result.traceLinkIds.length} (expected ${expectedTraceLinks})`);
+        if (result.traceLinkIds.length !== expectedTraceLinks) {
+            throw new Error(`Expected ${expectedTraceLinks} trace links, got ${result.traceLinkIds.length}`);
+        }
         for (const traceLinkId of result.traceLinkIds) {
             const traceLinkDoc = await db.collection('trace_links').doc(traceLinkId).get();
             if (!traceLinkDoc.exists) {
