@@ -1,21 +1,19 @@
 /**
- * Ocean Pearl OPS V2 - Production Handler (FIXED)
+ * Ocean Pearl OPS V2 - Production Handler (FIXED V2)
  * Phase 2: Test T3 - Production/Transformation
  * 
  * Creates:
- * - Ledger entry (double-entry: DEBIT finished goods, CREDIT raw materials)
+ * - Ledger entry (double-entry: DEBIT finished goods, CREDIT raw materials, DEBIT loss/waste if needed)
  * - Output inventory lots (with genealogy)
  * - Trace links (ALL inputs → ALL outputs for full genealogy)
  * - Updates input lots (reduces quantity)
  * 
- * Example: Raw sardine → Frozen sardine
- * 
  * Enforces:
- * - Idempotency via operationId (inside transaction with deterministic doc ID)
- * - Unit validation (input lots must belong to same unit as production)
+ * - Idempotency via operationId (inside transaction)
+ * - Unit validation (prevent cross-unit consumption)
+ * - Ledger Balancing (handles shrinkage/loss automatically)
  * - Firestore transaction
  * - Zod validation
- * - Full lot genealogy tracking
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -44,14 +42,15 @@ const ProductionInputSchema = z.object({
     inputLots: z.array(ProductionLotInputSchema).min(1),
     outputLots: z.array(ProductionLotOutputSchema).min(1),
 
-    // Cost accounting (optional, for now use quantity-based)
+    // Cost accounting
     costPerKgIdr: z.number().nonnegative().optional(),
 
     actorUserId: z.string(),
     notes: z.string().optional(),
 });
 
-type ProductionInput = z.infer<typeof ProductionInputSchema>;
+// Export type for use in other files if needed
+export type ProductionInput = z.infer<typeof ProductionInputSchema>;
 
 interface ProductionResult {
     success: boolean;
@@ -60,216 +59,225 @@ interface ProductionResult {
     traceLinkIds: string[];
 }
 
-export const productionHandler = onCall<ProductionInput, Promise<ProductionResult>>(
-    { region: 'us-central1' },
-    async (request) => {
-        // Validate authentication
-        if (!request.auth) {
-            throw new HttpsError('unauthenticated', 'Must be authenticated');
-        }
+export const productionHandler = onCall({ region: 'us-central1' }, async (request) => {
+    // Validate authentication
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Must be authenticated');
+    }
 
-        // Validate input
-        const input = ProductionInputSchema.parse(request.data);
+    // Validate input
+    const input = ProductionInputSchema.parse(request.data);
 
-        const db = admin.firestore();
+    const db = admin.firestore();
 
-        // Execute transaction with idempotency inside
-        const result = await db.runTransaction(async (transaction) => {
-            // 1. Check idempotency INSIDE transaction using deterministic doc ID
-            const ledgerEntryId = `produce-${input.unitId}-${input.operationId}`;
-            const ledgerRef = db.collection('ledger_entries').doc(ledgerEntryId);
-            const existingLedger = await transaction.get(ledgerRef);
+    // Execute transaction with idempotency inside
+    return db.runTransaction(async (transaction): Promise<ProductionResult> => {
+        // 1. Check idempotency INSIDE transaction using deterministic doc ID
+        const ledgerEntryId = `produce-${input.unitId}-${input.operationId}`;
+        const ledgerRef = db.collection('ledger_entries').doc(ledgerEntryId);
+        const existingLedger = await transaction.get(ledgerRef);
 
-            if (existingLedger.exists) {
-                // Return existing result (idempotent)
-                const existingData = existingLedger.data();
-                return {
-                    success: true,
-                    ledgerEntryId,
-                    outputLotIds: existingData?.links.outputLotIds || [],
-                    traceLinkIds: [], // Would need to query to get these
-                };
-            }
-
-            // 2. Verify input lots exist, have sufficient quantity, AND belong to same unit
-            const inputLotRefs = input.inputLots.map(lot =>
-                db.collection('inventory_lots').doc(lot.lotId)
-            );
-            const inputLotDocs = await Promise.all(
-                inputLotRefs.map(ref => transaction.get(ref))
-            );
-
-            // Validate input lots
-            for (let i = 0; i < inputLotDocs.length; i++) {
-                const doc = inputLotDocs[i];
-                const requestedQty = input.inputLots[i].quantityKg;
-                const lotId = input.inputLots[i].lotId;
-
-                if (!doc.exists) {
-                    throw new HttpsError(
-                        'not-found',
-                        `Input lot ${lotId} not found`
-                    );
-                }
-
-                const lotData = doc.data();
-
-                // NEW: Validate lot belongs to same unit (prevent cross-unit consumption)
-                if (lotData!.unitId !== input.unitId) {
-                    throw new HttpsError(
-                        'failed-precondition',
-                        `Input lot ${lotId} belongs to unit ${lotData!.unitId}, ` +
-                        `but production is at unit ${input.unitId}. ` +
-                        `Transfer lot to production unit first.`
-                    );
-                }
-
-                if (lotData!.quantityKgRemaining < requestedQty) {
-                    throw new HttpsError(
-                        'failed-precondition',
-                        `Insufficient quantity in lot ${lotId}: ` +
-                        `available ${lotData!.quantityKgRemaining} kg, requested ${requestedQty} kg`
-                    );
-                }
-            }
-
-            // Generate IDs (deterministic ledger ID, random for others)
-            const outputLotIds = input.outputLots.map(() =>
-                db.collection('inventory_lots').doc().id
-            );
-
-            // Create trace links for ALL inputs → ALL outputs (full genealogy)
-            const traceLinkIds: string[] = [];
-            for (const inputLot of input.inputLots) {
-                for (const outputLotId of outputLotIds) {
-                    traceLinkIds.push(db.collection('trace_links').doc().id);
-                }
-            }
-
-            const timestamp = admin.firestore.FieldValue.serverTimestamp();
-
-            // Calculate totals
-            const totalInputKg = input.inputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
-            const totalOutputKg = input.outputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
-
-            // Simple cost calculation (can be enhanced)
-            const costPerKg = input.costPerKgIdr || 0;
-            const totalInputValue = totalInputKg * costPerKg;
-            const totalOutputValue = totalOutputKg * costPerKg;
-
-            // 3. Update input lots (reduce quantity)
-            for (let i = 0; i < inputLotRefs.length; i++) {
-                const doc = inputLotDocs[i];
-                const lotData = doc.data();
-                const consumedQty = input.inputLots[i].quantityKg;
-
-                transaction.update(inputLotRefs[i], {
-                    quantityKgRemaining: lotData!.quantityKgRemaining - consumedQty,
-                    updatedAt: timestamp,
-                });
-            }
-
-            // 4. Create ledger entry (double-entry)
-            const ledgerEntry = {
-                id: ledgerEntryId,
-                timestamp,
-                locationId: input.locationId,
-                unitId: input.unitId,
-                actorUserId: input.actorUserId,
-                operationType: 'PRODUCE' as const,
-                operationId: input.operationId,
-                lines: [
-                    {
-                        account: 'INVENTORY_FINISHED', // Output account
-                        direction: 'DEBIT' as const,
-                        amountIdr: totalOutputValue,
-                        quantityKg: totalOutputKg,
-                    },
-                    {
-                        account: 'INVENTORY_RAW', // Input account
-                        direction: 'CREDIT' as const,
-                        amountIdr: totalInputValue,
-                        quantityKg: totalInputKg,
-                    },
-                ],
-                links: {
-                    inputLotIds: input.inputLots.map(lot => lot.lotId),
-                    outputLotIds,
-                    attachmentIds: [],
-                },
-                notes: input.notes,
-                createdAt: timestamp,
-            };
-
-            // Validate ledger entry
-            LedgerEntrySchema.parse(ledgerEntry);
-
-            // 5. Create output lots
-            for (let i = 0; i < input.outputLots.length; i++) {
-                const outputSpec = input.outputLots[i];
-                const outputLotId = outputLotIds[i];
-
-                const inventoryLot = {
-                    id: outputLotId,
-                    locationId: input.locationId,
-                    unitId: input.unitId,
-                    itemId: outputSpec.itemId,
-                    grade: outputSpec.grade,
-                    status: outputSpec.status,
-                    quantityKgRemaining: outputSpec.quantityKg,
-                    uom: 'KG' as const,
-                    origin: {
-                        sourceType: 'PRODUCTION' as const,
-                        sourceRefId: ledgerEntryId,
-                    },
-                    createdAt: timestamp,
-                };
-
-                // Validate inventory lot
-                InventoryLotSchema.parse(inventoryLot);
-
-                transaction.set(
-                    db.collection('inventory_lots').doc(outputLotId),
-                    inventoryLot
-                );
-            }
-
-            // 6. Create trace links (ALL inputs → ALL outputs for full genealogy)
-            let traceLinkIndex = 0;
-            for (const inputLot of input.inputLots) {
-                for (const outputLotId of outputLotIds) {
-                    const traceLinkId = traceLinkIds[traceLinkIndex++];
-
-                    const traceLink = {
-                        id: traceLinkId,
-                        fromLotId: inputLot.lotId,
-                        toLotId: outputLotId,
-                        eventId: ledgerEntryId,
-                        type: 'TRANSFORM' as const,
-                        createdAt: timestamp,
-                    };
-
-                    // Validate trace link
-                    TraceLinkSchema.parse(traceLink);
-
-                    transaction.set(
-                        db.collection('trace_links').doc(traceLinkId),
-                        traceLink
-                    );
-                }
-            }
-
-            // Write ledger entry
-            transaction.set(ledgerRef, ledgerEntry);
-
+        if (existingLedger.exists) {
+            // Return existing result (idempotent)
+            const existingData = existingLedger.data();
             return {
                 success: true,
                 ledgerEntryId,
-                outputLotIds,
-                traceLinkIds,
+                outputLotIds: existingData?.links.outputLotIds || [],
+                traceLinkIds: [], // Would need to query to get these if needed
             };
-        });
+        }
 
-        return result;
-    }
-);
+        // 2. Verify input lots exist, have sufficient quantity, AND belong to same unit
+        const inputLotRefs = input.inputLots.map(lot =>
+            db.collection('inventory_lots').doc(lot.lotId)
+        );
+        const inputLotDocs = await Promise.all(
+            inputLotRefs.map(ref => transaction.get(ref))
+        );
+
+        // Validate input lots
+        for (let i = 0; i < inputLotDocs.length; i++) {
+            const doc = inputLotDocs[i];
+            const requestedQty = input.inputLots[i].quantityKg;
+            const lotId = input.inputLots[i].lotId;
+
+            if (!doc.exists) {
+                throw new HttpsError('not-found', `Input lot ${lotId} not found`);
+            }
+
+            const lotData = doc.data();
+
+            // Validate lot belongs to same unit (prevent cross-unit consumption)
+            if (lotData!.unitId !== input.unitId) {
+                throw new HttpsError(
+                    'failed-precondition',
+                    `Input lot ${lotId} belongs to unit ${lotData!.unitId}, ` +
+                    `but production is at unit ${input.unitId}. ` +
+                    `Transfer lot to production unit first.`
+                );
+            }
+
+            if (lotData!.quantityKgRemaining < requestedQty) {
+                throw new HttpsError(
+                    'failed-precondition',
+                    `Insufficient quantity in lot ${lotId}: ` +
+                    `available ${lotData!.quantityKgRemaining} kg, requested ${requestedQty} kg`
+                );
+            }
+        }
+
+        // Generate IDs
+        const outputLotIds = input.outputLots.map(() =>
+            db.collection('inventory_lots').doc().id
+        );
+
+        // Create trace link IDs (ALL inputs × ALL outputs)
+        const traceLinkIds: string[] = [];
+        for (const _inputLot of input.inputLots) {
+            for (const _outputLotId of outputLotIds) {
+                traceLinkIds.push(db.collection('trace_links').doc().id);
+            }
+        }
+
+        const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+        // 3. Calculate Financials & Ledger Lines
+        const totalInputKg = input.inputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
+        const totalOutputKg = input.outputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);
+
+        const costPerKg = input.costPerKgIdr || 0;
+        const totalInputValue = totalInputKg * costPerKg;
+        const totalOutputValue = totalOutputKg * costPerKg;
+
+        // Calculate Variance (Shrinkage/Loss)
+        // If inputs cost 100 and outputs worth 90, we have 10 loss.
+        const variance = totalInputValue - totalOutputValue;
+
+        const ledgerLines = [
+            // DEBIT: Finished Goods (Output Value)
+            {
+                account: 'INVENTORY_FINISHED',
+                direction: 'DEBIT' as const,
+                amountIdr: totalOutputValue,
+                quantityKg: totalOutputKg,
+            },
+            // CREDIT: Raw Material (Input Value)
+            {
+                account: 'INVENTORY_RAW',
+                direction: 'CREDIT' as const,
+                amountIdr: totalInputValue,
+                quantityKg: totalInputKg,
+            }
+        ];
+
+        // Handle Variance (Loss/Shrink)
+        if (variance > 0.01) {
+            ledgerLines.push({
+                account: 'EXPENSE_PRODUCTION_LOSS',
+                direction: 'DEBIT' as const,
+                amountIdr: variance,
+                quantityKg: totalInputKg - totalOutputKg, // Mass balance check
+            });
+        }
+        // Technically variance < 0 is a gain, but we'll ignore for this cost model context 
+        // or treat as negative expense if strict balancing needed.
+        // For now, assume consistent pricing.
+
+        // 4. Update input lots (reduce quantity)
+        for (let i = 0; i < inputLotRefs.length; i++) {
+            const doc = inputLotDocs[i];
+            const lotData = doc.data();
+            const consumedQty = input.inputLots[i].quantityKg;
+
+            transaction.update(inputLotRefs[i], {
+                quantityKgRemaining: lotData!.quantityKgRemaining - consumedQty,
+                updatedAt: timestamp,
+            });
+        }
+
+        // 5. Create Ledger Entry
+        const ledgerEntry = {
+            id: ledgerEntryId,
+            timestamp,
+            locationId: input.locationId,
+            unitId: input.unitId,
+            actorUserId: input.actorUserId,
+            operationType: 'PRODUCE' as const,
+            operationId: input.operationId,
+            lines: ledgerLines,
+            links: {
+                inputLotIds: input.inputLots.map(lot => lot.lotId),
+                outputLotIds,
+                attachmentIds: [],
+            },
+            notes: input.notes,
+            createdAt: timestamp,
+        };
+
+        LedgerEntrySchema.parse(ledgerEntry);
+
+        // 6. Create Output Lots
+        for (let i = 0; i < input.outputLots.length; i++) {
+            const outputSpec = input.outputLots[i];
+            const outputLotId = outputLotIds[i];
+
+            const inventoryLot = {
+                id: outputLotId,
+                locationId: input.locationId,
+                unitId: input.unitId,
+                itemId: outputSpec.itemId,
+                grade: outputSpec.grade,
+                status: outputSpec.status,
+                quantityKgRemaining: outputSpec.quantityKg,
+                uom: 'KG' as const,
+                origin: {
+                    sourceType: 'PRODUCTION' as const,
+                    sourceRefId: ledgerEntryId,
+                },
+                createdAt: timestamp,
+            };
+
+            InventoryLotSchema.parse(inventoryLot);
+
+            transaction.set(
+                db.collection('inventory_lots').doc(outputLotId),
+                inventoryLot
+            );
+        }
+
+        // 7. Create Trace Links (Full Genealogy)
+        let traceLinkIndex = 0;
+        for (const inputLot of input.inputLots) {
+            for (const outputLotId of outputLotIds) {
+                const traceLinkId = traceLinkIds[traceLinkIndex++];
+
+                const traceLink = {
+                    id: traceLinkId,
+                    fromLotId: inputLot.lotId,
+                    toLotId: outputLotId,
+                    eventId: ledgerEntryId,
+                    type: 'TRANSFORM' as const,
+                    createdAt: timestamp,
+                };
+
+                TraceLinkSchema.parse(traceLink);
+
+                transaction.set(
+                    db.collection('trace_links').doc(traceLinkId),
+                    traceLink
+                );
+            }
+        }
+
+        // Write Ledger
+        transaction.set(ledgerRef, ledgerEntry);
+
+        return {
+            success: true,
+            ledgerEntryId,
+            outputLotIds,
+            traceLinkIds,
+        };
+    });
+});
