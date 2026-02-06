@@ -1,196 +1,92 @@
-# PHASE 2 EVIDENCE — TEST T3 (FIXED)
+# PHASE 2 EVIDENCE — TEST T3 (FIXED V2)
 
 **Test**: T3 (Production Handler)  
 **Date**: 2026-02-06  
-**Fixes Commit**: `92dfbe5` (fixed all 4 blocking issues)  
+**Fixes Commit**: `aeb492c` (Fixed TS, onCall, Ledger Balancing)  
 **Original Commit**: `c5641f6` (had issues)
 
 ---
 
-## ✅ ALL 4 BLOCKING ISSUES FIXED
+## ✅ LATEST BLOCKERS FIXED (V2)
 
-### **Issue 1: Blueprint Workflow Violation** ✅ FIXED
-**Problem**: Test created lot on boat unit, production consumed on factory unit (cross-unit)  
-**Fix**: 
-- Test now creates input lot at FACTORY unit (`kaimana-factory-1`)
-- Added validation in handler: throws error if input lot unitId ≠ production unitId
-- Error message guides user to transfer lot first
+### **1. TypeScript Sytax** ✅ FIXED
+- **Problem**: `type ProductionInput = z.infer;`
+- **Fix**: Corrected to `type ProductionInput = z.infer<typeof ProductionInputSchema>;`
+- Verified in `productionHandler.ts` Line ~54.
 
-### **Issue 2: TypeScript Correctness** ✅ FIXED
-**Problem**: Invalid types: `type ProductionInput = z.infer;`  
-**Fix**: Corrected to `type ProductionInput = z.infer<typeof ProductionInputSchema>;`
+### **2. onCall Signature** ✅ FIXED
+- **Problem**: `onCall>` broken generic syntax.
+- **Fix**: Simplified to `onCall({ region: 'us-central1' }, async (request) => { ... })` and relied on Zod parsing for internal type safety.
 
-### **Issue 3: Idempotency Race Condition** ✅ FIXED
-**Problem**: Idempotency check outside transaction  
-**Fix**: 
-- Moved idempotency check INSIDE transaction
-- Use deterministic ledger doc ID: `produce-${unitId}-${operationId}`
-- Check existence with `transaction.get()` before any writes
-
-### **Issue 4: Trace Links Oversimplified** ✅ FIXED
-**Problem**: Only linked outputs to first input lot  
-**Fix**: 
-- Now creates trace links for ALL inputs × ALL outputs
-- For 1 input + 2 outputs: creates 2 trace links (full genealogy)
-- For N inputs + M outputs: creates N × M trace links
+### **3. Ledger Balancing (Variance Handling)** ✅ FIXED
+- **Problem**: Ledger would split if Input Value ≠ Output Value (e.g. shrinkage).
+- **Fix**: 
+  - Calculated `variance = totalInputValue - totalOutputValue`.
+  - Added logic: `if (variance > 0.01)` → Create **DEBIT LINE** to `EXPENSE_PRODUCTION_LOSS`.
+  - Ensures Debits always match Credits.
 
 ---
 
 ## 📦 SCENARIO
 
 **Production**: Raw sardine → Frozen sardine + Waste  
-**Unit**: Factory (`kaimana-factory-1`) receives AND produces (no cross-unit consumption)
+**Unit**: Factory (`kaimana-factory-1`) receives AND produces.
 
 **Input**:
-- 500 kg raw sardine (received at factory)
+- 500 kg raw sardine (received at factory) @ 15,000 IDR/kg = 7,500,000 IDR
 
 **Outputs**:
-- 480 kg frozen sardine (96% yield)
-- 20 kg waste mix (4% loss)
+- 480 kg frozen sardine
+- 20 kg waste
+- Total Output Kg: 500 kg.
+- Total Output Value: 500 kg * 15,000 = 7,500,000 IDR.
+- **Variance**: 0 (In this specific test case).
 
----
-
-## 📦 INPUT PAYLOAD
-
-```typescript
-{
-  operationId: 'test-production-001-<timestamp>',
-  locationId: 'kaimana',
-  unitId: 'kaimana-factory-1',
-  inputLots: [
-    {
-      lotId: '<inputLotId>', // Created at FACTORY via receivingHandler
-      quantityKg: 500
-    }
-  ],
-  outputLots: [
-    {
-      itemId: 'sardine-frozen',
-      quantityKg: 480,
-      grade: 'A',
-      status: 'FROZEN'
-    },
-    {
-      itemId: 'waste-mix',
-      quantityKg: 20,
-      status: 'REJECT_SELLABLE'
-    }
-  ],
-  costPerKgIdr: 15000,
-  actorUserId: 'UNIT_OP_FACTORY1',
-  notes: 'Test T3: Raw → Frozen + Waste'
-}
-```
-
----
-
-## 🎯 EXPECTED OUTCOMES
-
-### 1. Ledger Entry
-- **Operation Type**: `PRODUCE`
-- **Ledger ID**: `produce-kaimana-factory-1-test-production-001-<timestamp>` (deterministic)
-- **Lines**:
-  - **DEBIT**: `INVENTORY_FINISHED` = 7,200,000 IDR (480 kg × 15,000)
-  - **CREDIT**: `INVENTORY_RAW` = 7,500,000 IDR (500 kg × 15,000)
-- **Balanced**: ✅ Debits == Credits
-
-### 2. Input Lot (Factory-Owned)
-- **Unit ID**: `kaimana-factory-1` (SAME as production unit)
-- **Quantity Before**: 500 KG
-- **Quantity After**: 0 KG (fully consumed)
-
-### 3. Output Lots (2)
-- Both created at `kaimana-factory-1`
-- Frozen: 480 kg, status `FROZEN`
-- Waste: 20 kg, status `REJECT_SELLABLE`
-
-### 4. Trace Links (Full Genealogy)
-- **Count**: 1 input × 2 outputs = **2 trace links**
-- Link 1: `<inputLotId>` → `<frozenLotId>` (TRANSFORM)
-- Link 2: `<inputLotId>` → `<wasteLotId>` (TRANSFORM)
+**Ledger Entry**:
+- **DEBIT**: `INVENTORY_FINISHED`: 7,500,000
+- **CREDIT**: `INVENTORY_RAW`: 7,500,000
+- **EXPENSE**: 0 (Not triggered in this test, but logic exists).
 
 ---
 
 ## ✅ VERIFICATION CHECKLIST
 
-- [ ] Input lot created at FACTORY unit (not boat)
-- [ ] Production unit matches input lot unit (no cross-unit error)
+- [ ] TS Types correct (`z.infer<...>`)
+- [ ] onCall signature valid
+- [ ] Ledger logic includes Variance/Loss calculation
+- [ ] Input lot created at FACTORY unit
+- [ ] Production unit matches input lot unit
 - [ ] Ledger entry uses deterministic ID
-- [ ] Idempotency works (inside transaction)
+- [ ] Idempotency works
 - [ ] Debits == Credits (balanced)
-- [ ] Input lot quantity reduced to 0
-- [ ] Two output lots created
-- [ ] **2 trace links** created (1 × 2 = full genealogy)
-- [ ] Test passes with all fixes
+- [ ] 2 trace links created
 
 ---
 
-## 🔧 HOW TO RUN TEST
+## 📎 GITHUB RAW LINKS (FIXED V2)
 
-**Run Test**:
-```bash
-cd functions
-npm run test:t3
+### Handler Implementation
+```
+https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/aeb492c/functions/src/handlers/productionHandler.ts
 ```
 
-**Expected Output**:
-```
-✅ Input lot created at FACTORY: <id> (500 kg)
-✅ Ledger Entry ID: produce-kaimana-factory-1-test-production-001-<timestamp>
-✅ BALANCED: Debits == Credits
-✅ Input Lot Updated: 0 kg remaining
-✅ Output Lots Created: 2
-✅ Trace Links Created: 2 (expected 2)
-   - <inputId> → <frozenId> (TRANSFORM)
-   - <inputId> → <wasteId> (TRANSFORM)
-🎉 TEST T3: PASS
-✅ IDEMPOTENCY: Same result returned
-```
-
----
-
-## 📎 GITHUB RAW LINKS (FIXED)
-
-### Handler Implementation (FIXED)
-```
-https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/92dfbe5/functions/src/handlers/productionHandler.ts
-```
-
-### Test Script (FIXED)
+### Test Script
 ```
 https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/92dfbe5/functions/tests/testT3.ts
 ```
-
-### Updated Index
-```
-https://raw.githubusercontent.com/tariqtharwat-OPS/ocean-pearl-ops/c5641f6/functions/src/index.ts
-```
-
----
-
-## 📊 FIXES SUMMARY
-
-| Issue | Status | Fix Applied |
-|-------|--------|-------------|
-| **1. Workflow violation** | ✅ FIXED | Unit validation + test uses factory |
-| **2. TypeScript types** | ✅ FIXED | Correct `z.infer<typeof Schema>` |
-| **3. Idempotency race** | ✅ FIXED | Moved inside transaction, deterministic ID |
-| **4. Trace links incomplete** | ✅ FIXED | ALL inputs × ALL outputs |
+*(Test script unchanged from previous fix)*
 
 ---
 
 ## ⚠️ EXECUTION STATUS
 
-**Status**: ⏸️ **READY FOR RE-REVIEW**
+**Status**: ⏸️ **AWAITING APPROVAL**
 
-All 4 blocking issues have been fixed and pushed to GitHub.
+I have applied the strict fixes requested. 
+Please review `productionHandler.ts` at the link above.
 
 **Next Steps**:
-1. **User** reviews fixes in RAW links above
-2. **User** confirms T3 fixes are acceptable
-3. If **APPROVED**: User runs `npm run test:t3` for final PASS
-4. If **MORE CHANGES NEEDED**: Implement and repeat
+1. **User** approves types and ledger logic.
+2. **User** runs `npm run test:t3`.
 
 ---
-
-**Awaiting user review of fixes.**
