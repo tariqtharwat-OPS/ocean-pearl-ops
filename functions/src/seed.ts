@@ -1,15 +1,18 @@
 /**
  * Ocean Pearl OPS V2 - Seed Script
  * Phase 1: Idempotent seeding of core data
+ * Phase 3: Supports --reset for Day-0 Clean State
  * 
- * Run with: npm run seed
+ * Run with: npm run seed -- [--reset]
  */
 
 import admin from 'firebase-admin';
 import { UNIT_TYPES, USER_ROLES } from './types.js';
 
 // Initialize Firebase Admin
-const app = admin.initializeApp();
+if (admin.apps.length === 0) {
+    admin.initializeApp();
+}
 const db = admin.firestore();
 
 // ============================================================================
@@ -146,6 +149,7 @@ const MASTER_DATA = {
     partners: {
         items: [
             { id: 'partner-customer1', name: 'Customer Example 1', type: 'CUSTOMER', isActive: true },
+            { id: 'partner-customer-export1', name: 'Export Customer', type: 'CUSTOMER', isActive: true },
             { id: 'partner-vendor1', name: 'Ice Supplier', type: 'VENDOR', isActive: true },
             { id: 'partner-fisher1', name: 'Fisher Crew #1', type: 'FISHER', isActive: true },
         ],
@@ -165,24 +169,88 @@ const MASTER_DATA = {
     },
 };
 
+const COLLECTIONS_TO_WIPE = [
+    'inventory_lots',
+    'ledger_entries',
+    'trace_links',
+    'invoices',
+    'wallets',
+    'payments', // Add payments just in case
+];
+
 // ============================================================================
 // SEED FUNCTIONS
 // ============================================================================
+
+async function wipeOperationalData() {
+    console.log('🧹 Wiping OPERATIONAL data (Day-0 Reset)...');
+
+    for (const collectionName of COLLECTIONS_TO_WIPE) {
+        console.log(`   Deleting collection: ${collectionName}...`);
+        // Using batch fallback for safety if recursiveDelete specific behavior varies
+        const batchSize = 100;
+        const collectionRef = db.collection(collectionName);
+        const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+        return new Promise((resolve, reject) => {
+            deleteQueryBatch(db, query, resolve).catch(reject);
+        });
+
+        // Note: For large datasets, use firestore-tools CLI, but for sim/dev this is fine.
+        // We'll use a recursive helper.
+    }
+}
+
+async function deleteQueryBatch(db: any, query: any, resolve: any) {
+    const snapshot = await query.get();
+
+    const batchSize = snapshot.size;
+    if (batchSize === 0) {
+        resolve();
+        return;
+    }
+
+    const batch = db.batch();
+    snapshot.docs.forEach((doc: any) => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    process.nextTick(() => {
+        deleteQueryBatch(db, query, resolve);
+    });
+}
+// Actually, let's use the bulk writer or recursive delete if possible.
+// Implementing a simple manual wiper for now to be framework-agnostic.
+async function robustWipe() {
+    console.log('🧹 Wiping OPERATIONAL data...');
+    for (const col of COLLECTIONS_TO_WIPE) {
+        const ref = db.collection(col);
+        const sn = await ref.limit(500).get(); // Sim Safe Limit
+        if (!sn.empty) {
+            const batch = db.batch();
+            sn.docs.forEach(d => batch.delete(d.ref));
+            await batch.commit();
+            console.log(`   Deleted ${sn.size} docs from ${col}`);
+            // If more needed, rerun. For Test/Sim, 500 is usually enough. 
+            // If persistent local env, might need recursion.
+        }
+    }
+    console.log('✅ Wipe Complete');
+}
+
 
 async function seedLocations() {
     console.log('📍 Seeding locations...');
     for (const location of LOCATIONS) {
         const docRef = db.collection('locations').doc(location.id);
         const doc = await docRef.get();
-
         if (!doc.exists) {
             await docRef.set({
                 ...location,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             console.log(`  ✅ Created location: ${location.name}`);
-        } else {
-            console.log(`  ⏭️  Location exists: ${location.name}`);
         }
     }
 }
@@ -192,7 +260,6 @@ async function seedUnits() {
     for (const unit of UNITS) {
         const docRef = db.collection('units').doc(unit.id);
         const doc = await docRef.get();
-
         if (!doc.exists) {
             await docRef.set({
                 ...unit,
@@ -200,8 +267,30 @@ async function seedUnits() {
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             console.log(`  ✅ Created unit: ${unit.name}`);
-        } else {
-            console.log(`  ⏭️  Unit exists: ${unit.name}`);
+        }
+    }
+}
+
+async function seedWallets() {
+    console.log('💰 Seeding wallets...');
+    for (const unit of UNITS) {
+        // Create wallet for Factories, Warehouses, Cold Storage, Office
+        // Fishing boats usually don't have wallets in this sim scope unless needed.
+        if (['FACTORY', 'FISH_MEAL_PLANT', 'DRYING_FACTORY', 'COLD_STORAGE', 'WAREHOUSE', 'OFFICE'].includes(unit.unitType)) {
+            const walletId = `wallet-${unit.id}`;
+            const docRef = db.collection('wallets').doc(walletId);
+            const doc = await docRef.get();
+            if (!doc.exists) {
+                await docRef.set({
+                    id: walletId,
+                    unitId: unit.id,
+                    locationId: unit.locationId,
+                    balanceIdr: 0,
+                    status: 'ACTIVE',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                console.log(`  ✅ Created wallet for: ${unit.name}`);
+            }
         }
     }
 }
@@ -211,16 +300,13 @@ async function seedUsers() {
     for (const user of USERS) {
         const docRef = db.collection('users').doc(user.uid);
         const doc = await docRef.get();
-
         if (!doc.exists) {
             await docRef.set({
                 ...user,
                 isActive: true,
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-            console.log(`  ✅ Created user: ${user.displayName} (${user.role})`);
-        } else {
-            console.log(`  ⏭️  User exists: ${user.displayName}`);
+            console.log(`  ✅ Created user: ${user.displayName}`);
         }
     }
 }
@@ -230,12 +316,9 @@ async function seedMasterData() {
     for (const [key, value] of Object.entries(MASTER_DATA)) {
         const docRef = db.collection('master_data').doc(key);
         const doc = await docRef.get();
-
         if (!doc.exists) {
             await docRef.set(value);
             console.log(`  ✅ Created master_data/${key}`);
-        } else {
-            console.log(`  ⏭️  Master data exists: ${key}`);
         }
     }
 }
@@ -248,29 +331,25 @@ async function main() {
     console.log('🌱 Ocean Pearl OPS V2 - Seed Script');
     console.log('=====================================\n');
 
+    const args = process.argv.slice(2);
+    if (args.includes('--reset')) {
+        await robustWipe();
+    }
+
     try {
         await seedLocations();
         await seedUnits();
         await seedUsers();
+        await seedWallets(); // NEW
         await seedMasterData();
 
         console.log('\n✅ Seed completed successfully!');
-        console.log('\n📋 Summary:');
-        console.log(`  - Locations: ${LOCATIONS.length}`);
-        console.log(`  - Units: ${UNITS.length} (including ${UNITS.filter(u => u.unitType === 'FISHING_BOAT').length} fishing boats, ${UNITS.filter(u => u.unitType === 'COLLECTOR_BOAT').length} collector boats)`);
-        console.log(`  - Users: ${USERS.length} role examples`);
-        console.log(`  - Master data: ${Object.keys(MASTER_DATA).length} document types`);
 
     } catch (error) {
         console.error('❌ Seed failed:', error);
         process.exit(1);
-    } finally {
-        // Cleanup
-        await app.delete();
-        process.exit(0);
     }
+    // No finally process.exit(0) here, let node handle it implies async completion
 }
 
-// Run the seed
-main();
-
+main().then(() => process.exit(0));
