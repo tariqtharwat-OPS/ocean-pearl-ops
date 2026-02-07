@@ -104,10 +104,11 @@ export const walletTransactionLogic = async (request: any): Promise<WalletTransa
 
     // Period Guard
     const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     // Execute transaction
     const result = await db.runTransaction(async (transaction) => {
+        await assertPeriodWritable(transaction, opDate);
+
         // Generate IDs
         const ledgerEntryId = db.collection('ledger_entries').doc().id;
         const paymentId = input.transactionType === 'EXPENSE'

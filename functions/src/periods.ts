@@ -6,7 +6,8 @@
 import admin from 'firebase-admin';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-export async function assertPeriodWritable(db: admin.firestore.Firestore, timestamp: Date | admin.firestore.Timestamp) {
+export async function assertPeriodWritable(t: admin.firestore.Transaction, timestamp: Date | admin.firestore.Timestamp) {
+    const db = admin.firestore();
     const date = timestamp instanceof admin.firestore.Timestamp ? timestamp.toDate() : timestamp;
 
     // Check if period for date exists and is CLOSED.
@@ -15,29 +16,24 @@ export async function assertPeriodWritable(db: admin.firestore.Firestore, timest
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const periodId = `${year}-${month}`;
 
-    // 1. Check Specific Period
-    const periodDoc = await db.collection('ledger_periods').doc(periodId).get();
+    // 1. Check Specific Period (Optimized Read)
+    const periodRef = db.collection('ledger_periods').doc(periodId);
+    const periodDoc = await t.get(periodRef);
+
     if (periodDoc.exists && periodDoc.data()?.status === 'CLOSED') {
         throw new HttpsError('failed-precondition', `Period ${periodId} is CLOSED. Writes denied.`);
     }
 
-    // 2. Check Global Closure (Any Future Period Closed implies Past is Closed?)
-    // Usually locking is chronological. If Feb is closed, Jan must be closed.
-    // If Feb is closed, writes to Jan are denied?
-    // Rules: "Close locks all ledger writes with timestamp <= endDate."
-    // So if ANY period with endDate >= date is CLOSED, we deny.
-
-    // 2. Check Global Closure (Any Period with endDate >= date is CLOSED)
+    // 2. Check Global Closure (Any Period with endDate >= date is CLOSED, transactional)
     // Avoid composite index by fetching all CLOSED periods (low volume)
-    const closedSnapshot = await db.collection('ledger_periods')
-        .where('status', '==', 'CLOSED')
-        .get();
+    const closedQuery = db.collection('ledger_periods').where('status', '==', 'CLOSED');
+    const closedSnapshot = await t.get(closedQuery);
 
     for (const doc of closedSnapshot.docs) {
         const data = doc.data();
         // Check if date <= endDate
         // Timestamp handling
-        const endDate = data.endDate instanceof admin.firestore.Timestamp ? data.endDate.toDate() : data.endDate.toDate(); // .toDate() if Timestamp
+        const endDate = data.endDate instanceof admin.firestore.Timestamp ? data.endDate.toDate() : data.endDate.toDate();
         // Wait, if data.endDate is Date? Firestore returns Timestamp. 
         // Using toDate() is safe if formatted correctly.
 

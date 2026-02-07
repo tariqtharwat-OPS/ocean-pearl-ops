@@ -30,9 +30,10 @@ export const arSettlementLogic = async (request: any) => {
     const db = admin.firestore();
 
     const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     return db.runTransaction(async (t) => {
+        await assertPeriodWritable(t, opDate);
+
         // Guard: Invoice
         const invRef = db.collection('invoices').doc(input.invoiceId);
         const invDoc = await t.get(invRef);

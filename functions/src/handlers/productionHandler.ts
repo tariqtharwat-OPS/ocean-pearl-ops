@@ -78,10 +78,11 @@ export const productionLogic = async (request: any) => {
     if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
 
     const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     // Execute transaction with idempotency inside
     return db.runTransaction(async (transaction): Promise<ProductionResult> => {
+        await assertPeriodWritable(transaction, opDate);
+
         // 1. Check idempotency INSIDE transaction using deterministic doc ID
         const ledgerEntryId = `produce-${input.unitId}-${input.operationId}`;
         const ledgerRef = db.collection('ledger_entries').doc(ledgerEntryId);

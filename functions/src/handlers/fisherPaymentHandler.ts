@@ -30,9 +30,10 @@ export const fisherPaymentLogic = async (request: any) => {
     const db = admin.firestore();
 
     const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     return db.runTransaction(async (t) => {
+        await assertPeriodWritable(t, opDate);
+
         const ledgerId = `payment-fisher-${input.operationId}`;
         const existing = await t.get(db.collection('ledger_entries').doc(ledgerId));
         if (existing.exists) return { success: true, ledgerEntryId: ledgerId };

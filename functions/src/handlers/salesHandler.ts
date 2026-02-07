@@ -37,9 +37,10 @@ export const salesLogic = async (request: any) => {
 
     // Period Guard
     const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     return db.runTransaction(async (t) => {
+        await assertPeriodWritable(t, opDate);
+
         // Guard: Validate Master Data
         const locationDoc = await t.get(db.collection('locations').doc(input.locationId));
         if (!locationDoc.exists) throw new HttpsError('not-found', `Location not found`);

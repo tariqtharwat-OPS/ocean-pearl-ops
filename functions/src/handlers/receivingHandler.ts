@@ -79,13 +79,16 @@ export const receivingLogic = async (request: any) => {
     if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found: ${input.unitId}`);
     if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
 
-    // Period Guard
+    // Period Guard moved inside transaction
     const tsInput: any = input.timestamp;
     const opDate = tsInput ? (typeof tsInput.toDate === 'function' ? tsInput.toDate() : (tsInput instanceof Date ? tsInput : new Date(tsInput))) : new Date();
-    await assertPeriodWritable(db, opDate);
 
     // Execute transaction
     const result = await db.runTransaction(async (transaction) => {
+        // Enforce Period Lock (Transaction-Safe)
+        await assertPeriodWritable(transaction, opDate);
+
+        // Guard: Check if boat/fisher exists
         // Generate IDs
         const ledgerEntryId = db.collection('ledger_entries').doc().id;
         const lotId = db.collection('inventory_lots').doc().id;
