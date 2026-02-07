@@ -19,7 +19,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import { z } from 'zod';
-import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema } from '../types.js';
+import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema, FirestoreTimestampSchema } from '../types.js';
+import { assertPeriodWritable } from '../periods.js';
 
 // Input/Output lot schema for production
 const ProductionLotInputSchema = z.object({
@@ -47,6 +48,7 @@ const ProductionInputSchema = z.object({
 
     actorUserId: z.string(),
     notes: z.string().optional(),
+    timestamp: FirestoreTimestampSchema.optional(),
 });
 
 export type ProductionInput = z.infer<typeof ProductionInputSchema>;
@@ -74,6 +76,9 @@ export const productionLogic = async (request: any) => {
     const unitDoc = await db.collection('units').doc(input.unitId).get();
     if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found: ${input.unitId}`);
     if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
+
+    const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
+    await assertPeriodWritable(db, opDate);
 
     // Execute transaction with idempotency inside
     return db.runTransaction(async (transaction): Promise<ProductionResult> => {
@@ -148,13 +153,13 @@ export const productionLogic = async (request: any) => {
 
         // Create trace link IDs (ALL inputs × ALL outputs)
         const traceLinkIds: string[] = [];
+        const timestamp = opDate;
         for (const _inputLot of input.inputLots) {
             for (const _outputLotId of outputLotIds) {
                 traceLinkIds.push(db.collection('trace_links').doc().id);
             }
         }
 
-        const timestamp = new Date();
 
         // 3. Calculate Financials (Allocation Policy)
         const totalOutputKg = input.outputLots.reduce((sum, lot) => sum + lot.quantityKg, 0);

@@ -6,7 +6,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import { z } from 'zod';
-import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema } from '../types.js';
+import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema, FirestoreTimestampSchema } from '../types.js';
+import { assertPeriodWritable } from '../periods.js';
 
 // Input validation schema
 const ReceivingInputSchema = z.object({
@@ -21,6 +22,7 @@ const ReceivingInputSchema = z.object({
     fisherId: z.string(), // Partner ID of fisher
     actorUserId: z.string(), // Who recorded this
     notes: z.string().optional(),
+    timestamp: FirestoreTimestampSchema.optional(),
 });
 
 type ReceivingInput = z.infer<typeof ReceivingInputSchema>;
@@ -77,6 +79,11 @@ export const receivingLogic = async (request: any) => {
     if (!unitDoc.exists) throw new HttpsError('not-found', `Unit not found: ${input.unitId}`);
     if (unitDoc.data()?.locationId !== input.locationId) throw new HttpsError('invalid-argument', `Unit ${input.unitId} not in ${input.locationId}`);
 
+    // Period Guard
+    const tsInput: any = input.timestamp;
+    const opDate = tsInput ? (typeof tsInput.toDate === 'function' ? tsInput.toDate() : (tsInput instanceof Date ? tsInput : new Date(tsInput))) : new Date();
+    await assertPeriodWritable(db, opDate);
+
     // Execute transaction
     const result = await db.runTransaction(async (transaction) => {
         // Generate IDs
@@ -85,7 +92,7 @@ export const receivingLogic = async (request: any) => {
         const traceLinkId = db.collection('trace_links').doc().id;
 
         const totalAmountIdr = input.quantityKg * input.pricePerKgIdr;
-        const timestamp = new Date();
+        const timestamp = opDate;
 
         // 1. Create Ledger Entry (Double-Entry)
         const ledgerEntry = {

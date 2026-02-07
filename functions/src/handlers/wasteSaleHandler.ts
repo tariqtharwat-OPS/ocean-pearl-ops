@@ -6,7 +6,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import { z } from 'zod';
-import { LedgerEntrySchema, InvoiceSchema, TraceLinkSchema } from '../types.js';
+import { LedgerEntrySchema, InvoiceSchema, TraceLinkSchema, FirestoreTimestampSchema } from '../types.js';
+import { assertPeriodWritable } from '../periods.js';
 
 // Input Schema
 const WasteSaleItemSchema = z.object({
@@ -23,6 +24,7 @@ const WasteSaleInputSchema = z.object({
     items: z.array(WasteSaleItemSchema).min(1),
     actorUserId: z.string(),
     notes: z.string().optional(),
+    timestamp: FirestoreTimestampSchema.optional(),
 });
 
 export type WasteSaleInput = z.infer<typeof WasteSaleInputSchema>;
@@ -32,6 +34,10 @@ export const wasteSaleLogic = async (request: any) => {
 
     const input = WasteSaleInputSchema.parse(request.data);
     const db = admin.firestore();
+
+    // Period Guard
+    const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
+    await assertPeriodWritable(db, opDate);
 
     return db.runTransaction(async (t) => {
         // Guard: Validate Master Data
@@ -103,7 +109,7 @@ export const wasteSaleLogic = async (request: any) => {
 
         // Generate IDs
         const invoiceId = db.collection('invoices').doc().id;
-        const timestamp = new Date();
+        const timestamp = opDate;
 
         // 1. Create Invoice (AR)
         const invoice = {

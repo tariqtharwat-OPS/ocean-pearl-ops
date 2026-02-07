@@ -6,7 +6,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import { z } from 'zod';
-import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema } from '../types.js';
+import { LedgerEntrySchema, InventoryLotSchema, TraceLinkSchema, FirestoreTimestampSchema } from '../types.js';
+import { assertPeriodWritable } from '../periods.js';
 
 // Input Schema
 const TransferItemSchema = z.object({
@@ -23,6 +24,7 @@ const TransferInputSchema = z.object({
     items: z.array(TransferItemSchema).min(1),
     actorUserId: z.string(),
     notes: z.string().optional(),
+    timestamp: FirestoreTimestampSchema.optional(),
 });
 
 type TransferInput = z.infer<typeof TransferInputSchema>;
@@ -32,6 +34,10 @@ export const transferLogic = async (request: any) => {
 
     const input = TransferInputSchema.parse(request.data);
     const db = admin.firestore();
+
+    // Period Guard
+    const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
+    await assertPeriodWritable(db, opDate);
 
     return db.runTransaction(async (t) => {
         // Guard: Validate Master Data
@@ -59,7 +65,8 @@ export const transferLogic = async (request: any) => {
         const srcDocs = await Promise.all(srcRefs.map(ref => t.get(ref)));
 
         const targetLotIds: string[] = [];
-        const timestamp = new Date();
+        const traceLinkIds: string[] = [];
+        const timestamp = opDate;
 
         // Process Items
         for (let i = 0; i < input.items.length; i++) {

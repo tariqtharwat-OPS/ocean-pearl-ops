@@ -19,7 +19,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import admin from 'firebase-admin';
 import { z } from 'zod';
-import { LedgerEntrySchema, PaymentSchema } from '../types.js';
+import { LedgerEntrySchema, PaymentSchema, FirestoreTimestampSchema } from '../types.js';
+import { assertPeriodWritable } from '../periods.js';
 
 // Input validation schema
 const WalletTransactionInputSchema = z.object({
@@ -41,6 +42,7 @@ const WalletTransactionInputSchema = z.object({
     actorUserId: z.string(),
     notes: z.string().optional(),
     attachmentIds: z.array(z.string()).optional(),
+    timestamp: FirestoreTimestampSchema.optional(),
 });
 
 type WalletTransactionInput = z.infer<typeof WalletTransactionInputSchema>;
@@ -100,6 +102,10 @@ export const walletTransactionLogic = async (request: any): Promise<WalletTransa
         };
     }
 
+    // Period Guard
+    const opDate = input.timestamp ? (input.timestamp instanceof admin.firestore.Timestamp ? input.timestamp.toDate() : input.timestamp) : new Date();
+    await assertPeriodWritable(db, opDate);
+
     // Execute transaction
     const result = await db.runTransaction(async (transaction) => {
         // Generate IDs
@@ -108,7 +114,7 @@ export const walletTransactionLogic = async (request: any): Promise<WalletTransa
             ? db.collection('payments').doc().id
             : undefined;
 
-        const timestamp = new Date(); // Use Date for Zod compatibility locally and Cloud
+        const timestamp = opDate;
 
         // Build ledger lines based on transaction type
         let ledgerLines: any[];

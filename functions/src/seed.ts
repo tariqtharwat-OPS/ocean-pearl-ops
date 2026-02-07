@@ -176,6 +176,7 @@ const COLLECTIONS_TO_WIPE = [
     'invoices',
     'wallets',
     'payments', // Add payments just in case
+    'ledger_periods',
 ];
 
 // ============================================================================
@@ -342,6 +343,7 @@ async function main() {
         await seedUsers();
         await seedWallets(); // NEW
         await seedMasterData();
+        await seedPeriods(db);
 
         console.log('\n✅ Seed completed successfully!');
 
@@ -352,4 +354,24 @@ async function main() {
     // No finally process.exit(0) here, let node handle it implies async completion
 }
 
+
 main().then(() => process.exit(0));
+
+async function seedPeriods(db: admin.firestore.Firestore) {
+    const periods = [
+        { id: '2026-01', status: 'CLOSED', endDate: '2026-02-01' },
+        { id: '2026-02', status: 'OPEN', endDate: '2026-03-01' },
+        { id: '2026-03', status: 'OPEN', endDate: '2026-04-01' }
+    ];
+
+    for (const p of periods) {
+        await db.collection('ledger_periods').doc(p.id).set({
+            id: p.id,
+            startDate: admin.firestore.Timestamp.fromDate(new Date(`${p.id}-01T00:00:00Z`)),
+            endDate: admin.firestore.Timestamp.fromDate(new Date(`${p.endDate}T00:00:00Z`)),
+            status: p.status,
+            closedAt: p.status === 'CLOSED' ? admin.firestore.Timestamp.now() : null,
+            closedByUid: p.status === 'CLOSED' ? 'system-seed' : null
+        });
+    }
+}

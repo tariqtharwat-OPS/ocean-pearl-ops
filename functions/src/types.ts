@@ -191,6 +191,7 @@ export const InvoiceSchema = z.object({
     partnerId: z.string(),
     currency: z.string().default('IDR'),
     totalAmountIdr: z.number().nonnegative(),
+    paidAmountIdr: z.number().nonnegative().optional(),
     linkedDeliveryRefId: z.string().optional(),
     createdAt: FirestoreTimestampSchema,
     updatedAt: FirestoreTimestampSchema.optional(),
@@ -226,6 +227,16 @@ export const AttachmentSchema = z.object({
     uploadedAt: FirestoreTimestampSchema,
 });
 
+// Ledger Period Schema
+export const LedgerPeriodSchema = z.object({
+    id: z.string(), // YYYY-MM
+    startDate: FirestoreTimestampSchema,
+    endDate: FirestoreTimestampSchema,
+    status: z.enum(['OPEN', 'CLOSED']),
+    closedAt: FirestoreTimestampSchema.nullable(),
+    closedByUid: z.string().nullable(),
+});
+
 // ============================================================================
 // TYPESCRIPT TYPES (inferred from Zod schemas)
 // ============================================================================
@@ -240,6 +251,7 @@ export type Invoice = z.infer<typeof InvoiceSchema>;
 export type Payment = z.infer<typeof PaymentSchema>;
 export type TraceLink = z.infer<typeof TraceLinkSchema>;
 export type Attachment = z.infer<typeof AttachmentSchema>;
+export type LedgerPeriod = z.infer<typeof LedgerPeriodSchema>;
 
 export type UnitType = (typeof UNIT_TYPES)[number];
 export type UserRole = (typeof USER_ROLES)[number];
